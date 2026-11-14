@@ -10,6 +10,7 @@
 #include <kernel/traps.h>
 #include <arch/machine/debug.h>
 #include <kernel/stack.h>
+#include <arch/object/vcpu.h>
 
 #include <api/syscall.h>
 
@@ -199,51 +200,86 @@ static void NORETURN restore_vmx(tcb_t *cur_thread, vcpu_t *vcpu)
 #endif
 
 #ifdef CONFIG_SVM
-static void NORETURN USED svm_enter_failed(void)
-{
-    NODE_LOCK_SYS;
-    c_entry_hook();
-    handleVmEntryFail();
-    restore_user_context();
-}
-
 static void NORETURN restore_svm(tcb_t *cur_thread, vcpu_t *vcpu)
 {
     restoreSVM();
 #ifdef CONFIG_HARDWARE_DEBUG_API
     loadAllDisabledBreakpointState(cur_thread);
 #endif
+    /*
+     * VMRUN takes VMCB PA in %rax. Guest RAX lives in the VMCB state save;
+     * other GPRs are restored from vcpu->gp_registers. On #VMEXIT the CPU
+     * returns to the next instruction with host RSP from HSAVE — we then
+     * stash guest GPRs and enter c_handle_vmexit (does not return).
+     */
     uint64_t vmcb_phys = pptr_to_paddr(vcpu->vmcb);
+    word_t *regs = vcpu->gp_registers;
     asm volatile(
-        "movq %[guest_regs], %%rsp\n"
-        "popq %%rax\n"
-        "popq %%rbx\n"
-        "popq %%rcx\n"
-        "popq %%rdx\n"
-        "popq %%rsi\n"
-        "popq %%rdi\n"
-        "popq %%rbp\n"
+        "movq %c[ebx](%[regs]), %%rbx\n"
+        "movq %c[ecx](%[regs]), %%rcx\n"
+        "movq %c[edx](%[regs]), %%rdx\n"
+        "movq %c[esi](%[regs]), %%rsi\n"
+        "movq %c[edi](%[regs]), %%rdi\n"
+        "movq %c[ebp](%[regs]), %%rbp\n"
 #ifdef CONFIG_X86_64_SVM_64BIT_GUESTS
-        "popq %%r8\n"
-        "popq %%r9\n"
-        "popq %%r10\n"
-        "popq %%r11\n"
-        "popq %%r12\n"
-        "popq %%r13\n"
-        "popq %%r14\n"
-        "popq %%r15\n"
+        "movq %c[r8](%[regs]), %%r8\n"
+        "movq %c[r9](%[regs]), %%r9\n"
+        "movq %c[r10](%[regs]), %%r10\n"
+        "movq %c[r11](%[regs]), %%r11\n"
+        "movq %c[r12](%[regs]), %%r12\n"
+        "movq %c[r13](%[regs]), %%r13\n"
+        "movq %c[r14](%[regs]), %%r14\n"
+        "movq %c[r15](%[regs]), %%r15\n"
 #endif
+        "movq %[vmcb], %%rax\n"
         "vmrun %%rax\n"
-        "leaq svm_enter_failed(%%rip), %%rax\n"
-        "jmp *%%rax\n"
+        /* #VMEXIT: save guest GPRs; guest RAX is in VMCB. */
+        "movq %%rbx, %c[ebx](%[regs])\n"
+        "movq %%rcx, %c[ecx](%[regs])\n"
+        "movq %%rdx, %c[edx](%[regs])\n"
+        "movq %%rsi, %c[esi](%[regs])\n"
+        "movq %%rdi, %c[edi](%[regs])\n"
+        "movq %%rbp, %c[ebp](%[regs])\n"
+#ifdef CONFIG_X86_64_SVM_64BIT_GUESTS
+        "movq %%r8, %c[r8](%[regs])\n"
+        "movq %%r9, %c[r9](%[regs])\n"
+        "movq %%r10, %c[r10](%[regs])\n"
+        "movq %%r11, %c[r11](%[regs])\n"
+        "movq %%r12, %c[r12](%[regs])\n"
+        "movq %%r13, %c[r13](%[regs])\n"
+        "movq %%r14, %c[r14](%[regs])\n"
+        "movq %%r15, %c[r15](%[regs])\n"
+#endif
         :
-        : [guest_regs]"r"(vcpu->gp_registers),
-        "a"(vmcb_phys)
-        : "memory", "cc", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp"
+        : [regs]"r"(regs),
+        [vmcb]"r"(vmcb_phys),
+        [ebx]"i"(VCPU_EBX * sizeof(word_t)),
+        [ecx]"i"(VCPU_ECX * sizeof(word_t)),
+        [edx]"i"(VCPU_EDX * sizeof(word_t)),
+        [esi]"i"(VCPU_ESI * sizeof(word_t)),
+        [edi]"i"(VCPU_EDI * sizeof(word_t)),
+        [ebp]"i"(VCPU_EBP * sizeof(word_t))
+#ifdef CONFIG_X86_64_SVM_64BIT_GUESTS
+        , [r8]"i"(VCPU_R8 * sizeof(word_t)),
+        [r9]"i"(VCPU_R9 * sizeof(word_t)),
+        [r10]"i"(VCPU_R10 * sizeof(word_t)),
+        [r11]"i"(VCPU_R11 * sizeof(word_t)),
+        [r12]"i"(VCPU_R12 * sizeof(word_t)),
+        [r13]"i"(VCPU_R13 * sizeof(word_t)),
+        [r14]"i"(VCPU_R14 * sizeof(word_t)),
+        [r15]"i"(VCPU_R15 * sizeof(word_t))
+#endif
+        : "memory", "cc", "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp"
 #ifdef CONFIG_X86_64_SVM_64BIT_GUESTS
         , "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
 #endif
     );
+    /* Pull guest RAX from VMCB state save into the GPR array. */
+    regs[VCPU_EAX] = vmcb_read(vcpu, VMCB_STATE_GUEST_RAX);
+    {
+        extern void c_handle_vmexit(void);
+        c_handle_vmexit();
+    }
     UNREACHABLE();
 }
 #endif

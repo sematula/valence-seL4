@@ -73,8 +73,15 @@ static void switchVCPU(vcpu_t *vcpu)
 static void set_default_intercepts(vcpu_t *vcpu)
 {
     word_t i1 = vmcb_read(vcpu, VMCB_CONTROL_INTERCEPT_INSTRUCTION1);
-    i1 |= VMCB_INTERCEPT_VMRUN | VMCB_INTERCEPT_CPUID | VMCB_INTERCEPT_IO | VMCB_INTERCEPT_MSR;
+    word_t i2 = vmcb_read(vcpu, VMCB_CONTROL_INTERCEPT_INSTRUCTION2);
+
+    /* Safe single-level defaults; VMRUN intercept keeps Nested SVM off. */
+    i1 |= VMCB_INTERCEPT_CPUID | VMCB_INTERCEPT_HLT | VMCB_INTERCEPT_IO |
+          VMCB_INTERCEPT_MSR | VMCB_INTERCEPT_SHUTDOWN;
+    i2 |= VMCB_INTERCEPT_VMRUN;
+
     vmcb_write(vcpu, VMCB_CONTROL_INTERCEPT_INSTRUCTION1, i1);
+    vmcb_write(vcpu, VMCB_CONTROL_INTERCEPT_INSTRUCTION2, i2);
 }
 
 void vcpu_init(vcpu_t *vcpu)
@@ -95,18 +102,15 @@ void vcpu_init(vcpu_t *vcpu)
 
     switchVCPU(vcpu);
 
-    vmcb_write(vcpu, VMCB_CONTROL_HOST_RIP, (word_t)&handle_vmexit);
-    vmcb_write(vcpu, VMCB_CONTROL_HOST_RSP, (word_t)&vcpu->gp_registers[n_vcpu_gp_register]);
-#ifndef CONFIG_KERNEL_SKIM_WINDOW
-    vmcb_write(vcpu, VMCB_CONTROL_HOST_CR3, getCurrentCR3().words[0]);
-#endif
-
+    /* Host state is restored from VM_HSAVE_PA on #VMEXIT; no VMCB host fields. */
     vmcb_write(vcpu, VMCB_CONTROL_NP_ENABLE, 1);
+    vmcb_write(vcpu, VMCB_CONTROL_TLB_CONTROL, VMCB_TLB_FLUSH_ALL);
     vmcb_write(vcpu, VMCB_STATE_GUEST_CR0, vcpu->cr0);
     vmcb_write(vcpu, VMCB_STATE_GUEST_CR4, read_cr4());
 
     set_default_intercepts(vcpu);
     memset(vcpu->io, ~(word_t)0, VCPU_IOBITMAP_SIZE);
+    vmcb_write(vcpu, VMCB_CONTROL_IOPM_BASE_PA, pptr_to_paddr(vcpu->io));
 }
 
 static void dissociateVcpuTcb(tcb_t *tcb, vcpu_t *vcpu)
@@ -394,7 +398,8 @@ static void setMRs_vmexit(uint32_t reason, word_t qualification)
     setMR(NODE_STATE(ksCurThread), buffer, SEL4_VMENTER_FAULT_QUALIFICATION_MR, qualification);
 
     setMR(NODE_STATE(ksCurThread), buffer, SEL4_VMENTER_FAULT_INSTRUCTION_LEN_MR, 0);
-    setMR(NODE_STATE(ksCurThread), buffer, SEL4_VMENTER_FAULT_GUEST_PHYSICAL_MR, vmcb_read(vcpu, VMCB_STATE_EXITINFO2));
+    setMR(NODE_STATE(ksCurThread), buffer, SEL4_VMENTER_FAULT_GUEST_PHYSICAL_MR,
+          vmcb_read(vcpu, VMCB_CONTROL_EXITINFO2));
     setMR(NODE_STATE(ksCurThread), buffer, SEL4_VMENTER_FAULT_RFLAGS_MR, vmcb_read(vcpu, VMCB_STATE_GUEST_RFLAGS));
     setMR(NODE_STATE(ksCurThread), buffer, SEL4_VMENTER_FAULT_GUEST_INT_MR, 0);
     setMR(NODE_STATE(ksCurThread), buffer, SEL4_VMENTER_FAULT_CR3_MR, vmcb_read(vcpu, VMCB_STATE_GUEST_CR3));
@@ -426,8 +431,8 @@ exception_t handleVmexit(void)
 
     NODE_LOCK_SYS;
 
-    reason = (uint32_t)vmcb_read(vcpu, VMCB_STATE_EXITCODE);
-    qualification = vmcb_read(vcpu, VMCB_STATE_EXITINFO1);
+    reason = (uint32_t)vmcb_read(vcpu, VMCB_CONTROL_EXITCODE);
+    qualification = vmcb_read(vcpu, VMCB_CONTROL_EXITINFO1);
     handleSvmFault(reason, qualification);
 
     return EXCEPTION_NONE;
