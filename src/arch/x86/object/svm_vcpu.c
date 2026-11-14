@@ -183,11 +183,9 @@ static exception_t decodeSetTCB(cap_t cap, word_t length, word_t *buffer)
 {
     tcb_t *tcb;
     vcpu_t *vcpu;
-    if (length < 1) {
-        userError("VCPU SetTCB: Truncated message.");
-        current_syscall_error.type = seL4_TruncatedMessage;
-        return EXCEPTION_SYSCALL_ERROR;
-    }
+    /* SetTCB takes the TCB only as an extra cap (same as VT-x); no MRs. */
+    (void)length;
+    (void)buffer;
     if (current_extra_caps.excaprefs[0] == NULL) {
         userError("VCPU SetTCB: Truncated message.");
         current_syscall_error.type = seL4_TruncatedMessage;
