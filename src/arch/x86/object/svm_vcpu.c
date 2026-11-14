@@ -75,9 +75,11 @@ static void set_default_intercepts(vcpu_t *vcpu)
     word_t i1 = vmcb_read(vcpu, VMCB_CONTROL_INTERCEPT_INSTRUCTION1);
     word_t i2 = vmcb_read(vcpu, VMCB_CONTROL_INTERCEPT_INSTRUCTION2);
 
-    /* Safe single-level defaults; VMRUN intercept keeps Nested SVM off. */
+    /* Safe single-level defaults; VMRUN intercept keeps Nested SVM off.
+     * Do not set INTERCEPT_MSR until MSRPM_BASE_PA points at a valid 8KiB map
+     * — otherwise VMRUN fails with VMEXIT_INVALID. */
     i1 |= VMCB_INTERCEPT_CPUID | VMCB_INTERCEPT_HLT | VMCB_INTERCEPT_IO |
-          VMCB_INTERCEPT_MSR | VMCB_INTERCEPT_SHUTDOWN;
+          VMCB_INTERCEPT_SHUTDOWN;
     i2 |= VMCB_INTERCEPT_VMRUN;
 
     vmcb_write(vcpu, VMCB_CONTROL_INTERCEPT_INSTRUCTION1, i1);
