@@ -29,6 +29,7 @@
 #define VMCB_CONTROL_EXITINFO2              0x080
 #define VMCB_CONTROL_EXITINTINFO            0x088
 #define VMCB_CONTROL_NP_ENABLE              0x090
+#define VMCB_CONTROL_EVENTINJ               0x0A8
 #define VMCB_CONTROL_NCR3                   0x0B0
 
 /* State save area begins at 0x400 (offsets absolute from VMCB base). */
