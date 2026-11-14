@@ -215,6 +215,9 @@ static void NORETURN restore_svm(tcb_t *cur_thread, vcpu_t *vcpu)
     uint64_t vmcb_phys = pptr_to_paddr(vcpu->vmcb);
     word_t *regs = vcpu->gp_registers;
     asm volatile(
+        /* Load VMCB PA into %rax *before* pushq — "m"(vmcb) is RSP-relative and
+         * would be wrong after the stack shifts (VMRUN then #GPs on a bad PA). */
+        "movq %[vmcb], %%rax\n"
         "pushq %[regs]\n"
         "movq (%%rsp), %%r11\n"
         "movq %c[ebx](%%r11), %%rbx\n"
@@ -234,7 +237,7 @@ static void NORETURN restore_svm(tcb_t *cur_thread, vcpu_t *vcpu)
         /* r11 last: still holding regs base until overwritten */
         "movq %c[r11](%%r11), %%r11\n"
 #endif
-        "movq %[vmcb], %%rax\n"
+        /* %rax still holds VMCB PA; guest RAX is in the VMCB state-save area. */
         "vmrun %%rax\n"
         /* #VMEXIT: host RSP restored; regs pointer still on stack. */
         "movq (%%rsp), %%rax\n"
