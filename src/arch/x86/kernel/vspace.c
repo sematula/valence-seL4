@@ -852,6 +852,10 @@ static exception_t performX86FrameInvocationUnmap(cap_t cap, cte_t *cte)
         case X86_MappingEPT:
             return performX86EPTPageInvocationUnmap(cap, cte);
 #endif
+#ifdef CONFIG_SVM
+        case X86_MappingNPT:
+            return performX86NPTPageInvocationUnmap(cap, cte);
+#endif
         case X86_MappingNone:
             fail("Mapped frame cap was not mapped");
             break;
@@ -1093,6 +1097,10 @@ exception_t decodeX86FrameInvocation(
 #ifdef CONFIG_VTX
     case X86PageMapEPT:
         return decodeX86EPTPageMap(invLabel, length, cte, cap, buffer);
+#endif
+#ifdef CONFIG_SVM
+    case X86PageMapNPT:
+        return decodeX86NPTPageMap(invLabel, length, cte, cap, buffer);
 #endif
 
     case X86PageGetAddress: {

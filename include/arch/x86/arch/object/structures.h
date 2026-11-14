@@ -17,11 +17,15 @@
 #include <arch/machine/registerset.h>
 #include <sel4/arch/constants.h>
 #include <sel4/sel4_arch/constants.h>
+#include <arch/virt.h>
 
 enum tcb_arch_cnode_index {
 #ifdef CONFIG_VTX
     /* VSpace root for running any associated VCPU in */
     tcbArchEPTRoot = tcbCNodeEntries,
+    tcbArchCNodeEntries
+#elif defined(CONFIG_SVM)
+    tcbArchNPTRoot = tcbCNodeEntries,
     tcbArchCNodeEntries
 #else
     tcbArchCNodeEntries = tcbCNodeEntries
@@ -30,11 +34,11 @@ enum tcb_arch_cnode_index {
 
 typedef struct arch_tcb {
     user_context_t tcbContext;
-#ifdef CONFIG_VTX
+#ifdef CONFIG_HARDWARE_VIRT
     /* Pointer to associated VCPU. NULL if not associated.
      * tcb->tcbVCPU->vcpuTCB == tcb. */
     struct vcpu *tcbVCPU;
-#endif /* CONFIG_VTX */
+#endif /* CONFIG_HARDWARE_VIRT */
 } arch_tcb_t;
 
 #define SEL_NULL    GDT_NULL
@@ -118,6 +122,63 @@ compile_assert(vtd_pt_size_sane, VTD_PT_INDEX_BITS + VTD_PTE_SIZE_BITS == seL4_I
 
 #endif /* CONFIG_VTX */
 
+#ifdef CONFIG_SVM
+
+#define NPT_PML4E_SIZE_BITS seL4_X86_NPTPML4EntryBits
+#define NPT_PML4_INDEX_BITS seL4_X86_NPTPML4IndexBits
+#define NPT_PDPTE_SIZE_BITS seL4_X86_NPTPDPTEntryBits
+#define NPT_PDPT_INDEX_BITS seL4_X86_NPTPDPTIndexBits
+#define NPT_PDE_SIZE_BITS   seL4_X86_NPTPDEntryBits
+#define NPT_PD_INDEX_BITS   seL4_X86_NPTPDIndexBits
+#define NPT_PTE_SIZE_BITS   seL4_X86_NPTPTEntryBits
+#define NPT_PT_INDEX_BITS   seL4_X86_NPTPTIndexBits
+
+#define NPT_PT_INDEX_OFFSET (seL4_PageBits)
+#define NPT_PD_INDEX_OFFSET (NPT_PT_INDEX_OFFSET + NPT_PT_INDEX_BITS)
+#define NPT_PDPT_INDEX_OFFSET (NPT_PD_INDEX_OFFSET + NPT_PD_INDEX_BITS)
+#define NPT_PML4_INDEX_OFFSET (NPT_PDPT_INDEX_OFFSET + NPT_PDPT_INDEX_BITS)
+
+#define GET_NPT_PML4_INDEX(x) ( (((uint64_t)(x)) >> (NPT_PML4_INDEX_OFFSET)) & MASK(NPT_PML4_INDEX_BITS))
+#define GET_NPT_PDPT_INDEX(x) ( ((x) >> (NPT_PDPT_INDEX_OFFSET)) & MASK(NPT_PDPT_INDEX_BITS))
+#define GET_NPT_PD_INDEX(x) ( ((x) >> (NPT_PD_INDEX_OFFSET)) & MASK(NPT_PD_INDEX_BITS))
+#define GET_NPT_PT_INDEX(x) ( ((x) >> (NPT_PT_INDEX_OFFSET)) & MASK(NPT_PT_INDEX_BITS))
+
+#define NPT_PML4E_PTR(r)     ((npt_pml4e_t *)(r))
+#define NPT_PML4E_PTR_PTR(r) ((npt_pml4e_t **)(r))
+#define NPT_PML4E_REF(p)     ((word_t)(p))
+
+#define NPT_PML4_SIZE_BITS seL4_X86_NPTPML4Bits
+#define NPT_PML4_PTR(r)    ((npt_pml4e_t *)(r))
+#define NPT_PML4_REF(p)    ((word_t)(p))
+
+#define NPT_PDPTE_PTR(r)     ((npt_pdpte_t *)(r))
+#define NPT_PDPTE_PTR_PTR(r) ((npt_pdpte_t **)(r))
+#define NPT_PDPTE_REF(p)     ((word_t)(p))
+
+#define NPT_PDPT_SIZE_BITS seL4_X86_NPTPDPTBits
+#define NPT_PDPT_PTR(r)    ((npt_pdpte_t *)(r))
+#define NPT_PDPT_REF(p)    ((word_t)(p))
+
+#define NPT_PDE_PTR(r)     ((npt_pde_t *)(r))
+#define NPT_PDE_PTR_PTR(r) ((npt_pde_t **)(r))
+#define NPT_PDE_REF(p)     ((word_t)(p))
+
+#define NPT_PD_SIZE_BITS seL4_X86_NPTPDBits
+#define NPT_PD_PTR(r)    ((npt_pde_t *)(r))
+#define NPT_PD_REF(p)    ((word_t)(p))
+
+#define NPT_PTE_PTR(r)    ((npt_pte_t *)(r))
+#define NPT_PTE_REF(p)    ((word_t)(p))
+
+#define NPT_PT_SIZE_BITS seL4_X86_NPTPTBits
+#define NPT_PT_PTR(r)    ((npt_pte_t *)(r))
+#define NPT_PT_REF(p)    ((word_t)(p))
+
+#define VCPU_PTR(r)       ((struct vcpu *)(r))
+#define VCPU_REF(p)       ((word_t)(p))
+
+#endif /* CONFIG_SVM */
+
 struct rdmsr_safe_result {
     uint64_t value;
     bool_t success;
@@ -186,6 +247,20 @@ static inline word_t CONST cap_get_archCapSizeBits(cap_t cap)
         return seL4_X86_EPTPTBits;
 #endif /* CONFIG_VTX */
 
+#ifdef CONFIG_SVM
+    case cap_vcpu_cap:
+        return seL4_X86_VCPUBits;
+
+    case cap_npt_pml4_cap:
+        return seL4_X86_NPTPML4Bits;
+    case cap_npt_pdpt_cap:
+        return seL4_X86_NPTPDPTBits;
+    case cap_npt_pd_cap:
+        return seL4_X86_NPTPDBits;
+    case cap_npt_pt_cap:
+        return seL4_X86_NPTPTBits;
+#endif /* CONFIG_SVM */
+
     default:
         return cap_get_modeCapSizeBits(cap);
     }
@@ -242,6 +317,23 @@ static inline bool_t CONST cap_get_archCapIsPhysical(cap_t cap)
         return true;
 #endif /* CONFIG_VTX */
 
+#ifdef CONFIG_SVM
+    case cap_vcpu_cap:
+        return true;
+
+    case cap_npt_pt_cap:
+        return true;
+
+    case cap_npt_pd_cap:
+        return true;
+
+    case cap_npt_pdpt_cap:
+        return true;
+
+    case cap_npt_pml4_cap:
+        return true;
+#endif /* CONFIG_SVM */
+
     default:
         return cap_get_modeCapIsPhysical(cap);
     }
@@ -297,6 +389,23 @@ static inline void *CONST cap_get_archCapPtr(cap_t cap)
     case cap_ept_pml4_cap:
         return EPT_PML4_PTR(cap_ept_pml4_cap_get_capPML4BasePtr(cap));
 #endif /* CONFIG_VTX */
+
+#ifdef CONFIG_SVM
+    case cap_vcpu_cap:
+        return VCPU_PTR(cap_vcpu_cap_get_capVCPUPtr(cap));
+
+    case cap_npt_pt_cap:
+        return NPT_PT_PTR(cap_npt_pt_cap_get_capPTBasePtr(cap));
+
+    case cap_npt_pd_cap:
+        return NPT_PD_PTR(cap_npt_pd_cap_get_capPDBasePtr(cap));
+
+    case cap_npt_pdpt_cap:
+        return NPT_PDPT_PTR(cap_npt_pdpt_cap_get_capPDPTBasePtr(cap));
+
+    case cap_npt_pml4_cap:
+        return NPT_PML4_PTR(cap_npt_pml4_cap_get_capPML4BasePtr(cap));
+#endif /* CONFIG_SVM */
 
     default:
         return cap_get_modeCapPtr(cap);

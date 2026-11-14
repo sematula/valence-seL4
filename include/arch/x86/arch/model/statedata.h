@@ -13,6 +13,7 @@
 #include <arch/types.h>
 #include <plat/machine/devices.h>
 #include <arch/object/vcpu.h>
+#include <arch/virt.h>
 #include <arch/object/iospace.h>
 #include <arch/object/ioport.h>
 #include <plat/machine.h>
@@ -46,9 +47,15 @@ NODE_STATE_DECLARE(word_t, x86KSGPExceptReturnTo);
 
 NODE_STATE_TYPE_DECLARE(modeNodeState, mode);
 
-#ifdef CONFIG_VTX
+#ifdef CONFIG_HARDWARE_VIRT
 NODE_STATE_DECLARE(vcpu_t *, x86KSCurrentVCPU);
+#endif
+#ifdef CONFIG_VTX
 NODE_STATE_DECLARE(struct vmxon_region, x86KSVMXOnRegion);
+#endif
+#ifdef CONFIG_SVM
+#define SVM_HOST_SAVE_SIZE 4096
+NODE_STATE_DECLARE(char[SVM_HOST_SAVE_SIZE], x86KSSVMHostSave);
 #endif
 
 NODE_STATE_END(archNodeState);

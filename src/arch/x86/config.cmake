@@ -67,10 +67,16 @@ config_string(KernelCacheLnSz CACHE_LN_SZ "Define cache line size for the curren
               DEFAULT 64 DEPENDS "KernelArchX86" UNDEF_DISABLED UNQUOTE)
 
 config_option(KernelVTX VTX "VTX support" DEFAULT OFF
-              DEPENDS "KernelArchX86;NOT KernelVerificationBuild")
+              DEPENDS "KernelArchX86;NOT KernelSVM;NOT KernelVerificationBuild")
+
+config_option(KernelSVM SVM "AMD SVM support" DEFAULT OFF
+              DEPENDS "KernelArchX86;NOT KernelVTX;NOT KernelVerificationBuild")
 
 config_option(KernelX86_64VTX64BitGuests X86_64_VTX_64BIT_GUESTS "Support 64-bit guests" DEFAULT OFF
               DEPENDS "KernelArchX86;KernelVTX;NOT KernelVerificationBuild")
+
+config_option(KernelX86_64SVM64BitGuests X86_64_SVM_64BIT_GUESTS "Support 64-bit SVM guests" DEFAULT OFF
+              DEPENDS "KernelArchX86;KernelSVM;NOT KernelVerificationBuild")
 
 config_option(KernelIOMMU IOMMU "IOMMU support for VT-d enabled chipset" DEFAULT ON
               DEPENDS "KernelPlatPC99; NOT KernelVerificationBuild" DEFAULT_DISABLED OFF)
@@ -88,6 +94,15 @@ config_string(
     will be run for optimum performance."
   DEFAULT 1024
   DEPENDS "KernelVTX" DEFAULT_DISABLED 0
+  UNQUOTE)
+
+config_string(
+  KernelMaxSVASIDs
+  MAX_SVASIDS
+  "The kernel maintains a mapping of 16-bit SVASIDs to VCPUs. Size at least the number of VCPUs \
+    that will be run for optimum performance."
+  DEFAULT 1024
+  DEPENDS "KernelSVM" DEFAULT_DISABLED 0
   UNQUOTE)
 
 config_option(
@@ -337,6 +352,7 @@ add_sources(
          object/tcb.c
          object/iospace.c
          object/vcpu.c
+         object/svm_vcpu.c
          kernel/vspace.c
          kernel/apic.c
          kernel/xapic.c
@@ -347,6 +363,7 @@ add_sources(
          kernel/boot.c
          kernel/cmdline.c
          kernel/ept.c
+         kernel/npt.c
          kernel/thread.c
          model/statedata.c
          machine/capdl.c

@@ -7,6 +7,7 @@
 #pragma once
 
 #include <config.h>
+#include <arch/virt.h>
 #include <types.h>
 #include <arch/object/vcpu.h>
 #include <object/structures.h>
@@ -37,7 +38,7 @@ static inline uint32_t xsave_features_low(void)
 static inline void saveFpuState(tcb_t *thread)
 {
     user_fpu_state_t *dest = &thread->tcbArch.tcbContext.fpuState;
-#ifdef CONFIG_VTX
+#ifdef CONFIG_HARDWARE_VIRT
     struct vcpu *vcpu = thread->tcbArch.tcbVCPU;
 
     if (vcpu && vcpu->fpu_active) {
@@ -61,7 +62,7 @@ static inline void saveFpuState(tcb_t *thread)
 static inline void loadFpuState(const tcb_t *thread)
 {
     const user_fpu_state_t *src = &thread->tcbArch.tcbContext.fpuState;
-#ifdef CONFIG_VTX
+#ifdef CONFIG_HARDWARE_VIRT
     const struct vcpu *vcpu = thread->tcbArch.tcbVCPU;
 
     if (vcpu && vcpu->fpu_active) {

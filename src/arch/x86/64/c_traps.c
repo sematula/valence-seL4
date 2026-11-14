@@ -198,6 +198,56 @@ static void NORETURN restore_vmx(tcb_t *cur_thread, vcpu_t *vcpu)
 }
 #endif
 
+#ifdef CONFIG_SVM
+static void NORETURN USED svm_enter_failed(void)
+{
+    NODE_LOCK_SYS;
+    c_entry_hook();
+    handleVmEntryFail();
+    restore_user_context();
+}
+
+static void NORETURN restore_svm(tcb_t *cur_thread, vcpu_t *vcpu)
+{
+    restoreSVM();
+#ifdef CONFIG_HARDWARE_DEBUG_API
+    loadAllDisabledBreakpointState(cur_thread);
+#endif
+    uint64_t vmcb_phys = pptr_to_paddr(vcpu->vmcb);
+    asm volatile(
+        "movq %[guest_regs], %%rsp\n"
+        "popq %%rax\n"
+        "popq %%rbx\n"
+        "popq %%rcx\n"
+        "popq %%rdx\n"
+        "popq %%rsi\n"
+        "popq %%rdi\n"
+        "popq %%rbp\n"
+#ifdef CONFIG_X86_64_SVM_64BIT_GUESTS
+        "popq %%r8\n"
+        "popq %%r9\n"
+        "popq %%r10\n"
+        "popq %%r11\n"
+        "popq %%r12\n"
+        "popq %%r13\n"
+        "popq %%r14\n"
+        "popq %%r15\n"
+#endif
+        "vmrun %%rax\n"
+        "leaq svm_enter_failed(%%rip), %%rax\n"
+        "jmp *%%rax\n"
+        :
+        : [guest_regs]"r"(vcpu->gp_registers),
+        "a"(vmcb_phys)
+        : "memory", "cc", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp"
+#ifdef CONFIG_X86_64_SVM_64BIT_GUESTS
+        , "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
+#endif
+    );
+    UNREACHABLE();
+}
+#endif
+
 void VISIBLE NORETURN restore_user_context(void)
 {
     c_exit_hook();
@@ -224,11 +274,16 @@ void VISIBLE NORETURN restore_user_context(void)
 
     tcb_t *cur_thread = NODE_STATE(ksCurThread);
     word_t *irqstack = x64KSIRQStack[CURRENT_CPU_INDEX()];
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
     vcpu_t *vcpu = cur_thread->tcbArch.tcbVCPU;
     if (thread_state_ptr_get_tsType(&cur_thread->tcbState) == ThreadState_RunningVM) {
         vcpu_fpu_to_guest(cur_thread, vcpu);
+#ifdef CONFIG_VTX
         restore_vmx(cur_thread, vcpu);
+#endif
+#ifdef CONFIG_SVM
+        restore_svm(cur_thread, vcpu);
+#endif
     } else if (vcpu) {
         vcpu_fpu_to_host(cur_thread, vcpu);
     }

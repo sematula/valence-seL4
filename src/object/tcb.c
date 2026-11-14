@@ -919,6 +919,10 @@ exception_t decodeTCBInvocation(word_t invLabel, word_t length, cap_t cap,
     case TCBSetEPTRoot:
         return decodeSetEPTRoot(cap);
 #endif
+#ifdef CONFIG_SVM
+    case TCBSetNPTRoot:
+        return decodeSetNPTRoot(cap);
+#endif
 
 #ifdef CONFIG_HARDWARE_DEBUG_API
     case TCBConfigureSingleStepping:

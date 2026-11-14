@@ -477,6 +477,14 @@
                 </description>
             </error>
         </method>
+        <method id="X86PageMapNPT" name="MapNPT" manual_name="Map NPT">
+            <condition><config var="CONFIG_SVM"/></condition>
+            <brief>Map a page into a nested page table (NPT).</brief>
+            <param dir="in" name="nptpml4" type="seL4_X86_NPTPML4"/>
+            <param dir="in" name="gpa" type="seL4_Word"/>
+            <param dir="in" name="rights" type="seL4_CapRights_t"/>
+            <param dir="in" name="attr" type="seL4_X86_NPT_VMAttributes"/>
+        </method>
     </interface>
 
     <interface name="seL4_X86_ASIDControl" manual_name="ASID Control">
@@ -868,6 +876,11 @@
         </method>
     </interface>
     <interface name="seL4_TCB" manual_name="TCB" cap_description="Capability to the TCB which is being operated on.">
+        <method id="TCBSetNPTRoot" name="SetNPTRoot" manual_name="Set NPT Root" manual_label="set_nptroot">
+            <condition><config var="CONFIG_SVM"/></condition>
+            <brief>Set the NPT root of a thread</brief>
+            <param dir="in" name="nptpml4" type="seL4_X86_NPTPML4"/>
+        </method>
         <method id="TCBSetEPTRoot" name="SetEPTRoot" manual_name="Set EPT Root" manual_label="set_eptroot">
             <condition><config var="CONFIG_VTX"/></condition>
             <brief>
@@ -893,7 +906,7 @@
     </interface>
     <interface name="seL4_X86_VCPU" manual_name="VCPU" cap_description='VCPU object to operate on'>
         <method id="X86VCPUSetTCB" name="SetTCB" manual_name="Set TCB">
-            <condition><config var="CONFIG_VTX"/></condition>
+            <condition><or><config var="CONFIG_VTX"/><config var="CONFIG_SVM"/></or></condition>
             <brief>
                 Bind TCB to VCPU
             </brief>
@@ -984,8 +997,23 @@
                 </description>
             </error>
         </method>
+        <method id="X86VCPUReadVMCB" name="ReadVMCB" manual_name="Read VMCB" manual_label="vcpu_readvmcb">
+            <condition><config var="CONFIG_SVM"/></condition>
+            <brief>Read a VMCB field</brief>
+            <description>Read a guest VMCB field by byte offset.</description>
+            <param dir="in" name="field" type="seL4_Word"/>
+            <param dir="out" name="value" type="seL4_Word"/>
+        </method>
+        <method id="X86VCPUWriteVMCB" name="WriteVMCB" manual_name="Write VMCB" manual_label="vcpu_writevmcb">
+            <condition><config var="CONFIG_SVM"/></condition>
+            <brief>Write a VMCB field</brief>
+            <description>Write a guest VMCB field by byte offset.</description>
+            <param dir="in" name="field" type="seL4_Word"/>
+            <param dir="in" name="value" type="seL4_Word"/>
+            <param dir="out" name="written" type="seL4_Word"/>
+        </method>
         <method id="X86VCPUEnableIOPort" name="EnableIOPort" manual_name="Enable I/O Port" manual_label="vcpu_enableioport">
-            <condition><config var="CONFIG_VTX"/></condition>
+            <condition><or><config var="CONFIG_VTX"/><config var="CONFIG_SVM"/></or></condition>
             <brief>
                 Enable I/O port range in guest execution
             </brief>
@@ -1020,7 +1048,7 @@
             </error>
         </method>
         <method id="X86VCPUDisableIOPort" name="DisableIOPort" manual_name="Disable I/O Port">
-            <condition><config var="CONFIG_VTX"/></condition>
+            <condition><or><config var="CONFIG_VTX"/><config var="CONFIG_SVM"/></or></condition>
             <brief>
                 Disable I/O port range in privileged execution
             </brief>
@@ -1044,7 +1072,7 @@
             </error>
         </method>
         <method id="X86VCPUWriteRegisters" name="WriteRegisters" manual_name="Write Registers">
-            <condition><config var="CONFIG_VTX"/></condition>
+            <condition><or><config var="CONFIG_VTX"/><config var="CONFIG_SVM"/></or></condition>
             <brief>
                 Set guest mode registers to the fields of a given <texttt text="seL4_VCPUContext"/>
             </brief>
@@ -1267,5 +1295,29 @@
                 </description>
             </error>
         </method>
+    </interface>
+    <interface name="seL4_X86_NPTPDPT" manual_name="Nested Page Table PDPT" cap_description="NPT PDPT capability">
+        <method id="X86NPTPDPTMap" name="Map"><condition><config var="CONFIG_SVM"/></condition>
+            <param dir="in" name="nptpml4" type="seL4_X86_NPTPML4"/>
+            <param dir="in" name="gpa" type="seL4_Word"/>
+            <param dir="in" name="attr" type="seL4_X86_NPT_VMAttributes"/>
+        </method>
+        <method id="X86NPTPDPTUnmap" name="Unmap"><condition><config var="CONFIG_SVM"/></condition></method>
+    </interface>
+    <interface name="seL4_X86_NPTPD" manual_name="Nested Page Table PD" cap_description="NPT PD capability">
+        <method id="X86NPTPDMap" name="Map"><condition><config var="CONFIG_SVM"/></condition>
+            <param dir="in" name="nptpml4" type="seL4_X86_NPTPML4"/>
+            <param dir="in" name="gpa" type="seL4_Word"/>
+            <param dir="in" name="attr" type="seL4_X86_NPT_VMAttributes"/>
+        </method>
+        <method id="X86NPTPDUnmap" name="Unmap"><condition><config var="CONFIG_SVM"/></condition></method>
+    </interface>
+    <interface name="seL4_X86_NPTPT" manual_name="Nested Page Table PT" cap_description="NPT PT capability">
+        <method id="X86NPTPTMap" name="Map"><condition><config var="CONFIG_SVM"/></condition>
+            <param dir="in" name="nptpml4" type="seL4_X86_NPTPML4"/>
+            <param dir="in" name="gpa" type="seL4_Word"/>
+            <param dir="in" name="attr" type="seL4_X86_NPT_VMAttributes"/>
+        </method>
+        <method id="X86NPTPTUnmap" name="Unmap"><condition><config var="CONFIG_SVM"/></condition></method>
     </interface>
 </api>

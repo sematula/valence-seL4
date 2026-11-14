@@ -114,7 +114,7 @@ block io_port_cap {
     field   capIOPortLastPort  16
 
     padding                    8
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
     field   capIOPortVPID      16
 #else
     padding                    16
@@ -149,7 +149,7 @@ block io_page_table_cap (capType, capIOPTIsMapped, capIOPTLevel, capIOPTMappedAd
 
 #endif
 
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
 
 block vcpu_cap {
     field capVCPUPtr                64
@@ -157,6 +157,10 @@ block vcpu_cap {
     field capType                   5
     padding                         59
 }
+
+#endif
+
+#ifdef CONFIG_VTX
 
 -- Fourth-level EPT page table
 block ept_pt_cap (capType, capPTMappedAddress, capPTIsMapped, capPTMappedASID, capPTBasePtr) {
@@ -207,6 +211,53 @@ block ept_pml4_cap (capType, capPML4IsMapped, capPML4MappedASID, capPML4BasePtr)
 
 #endif
 
+#ifdef CONFIG_SVM
+
+block npt_pt_cap (capType, capPTMappedAddress, capPTIsMapped, capPTMappedASID, capPTBasePtr) {
+    field       capPTBasePtr        64
+
+    field       capType             5
+    field       capPTIsMapped       1
+    padding                         9
+    field_high  capPTMappedAddress  28
+    field       capPTMappedASID     16
+    padding                         5
+}
+
+block npt_pd_cap (capType, capPDMappedAddress, capPDIsMapped, capPDMappedASID, capPDBasePtr) {
+    field       capPDBasePtr        64
+
+    field       capType             5
+    field       capPDIsMapped       1
+    padding                         9
+    field_high  capPDMappedAddress  20
+    field       capPDMappedASID     16
+    padding                         13
+}
+
+block npt_pdpt_cap (capType, capPDPTMappedAddress, capPDPTIsMapped, capPDPTMappedASID, capPDPTBasePtr) {
+    field       capPDPTBasePtr      64
+
+    field       capType             5
+    field       capPDPTIsMapped     1
+    padding                         9
+    field_high  capPDPTMappedAddress 18
+    field       capPDPTMappedASID   16
+    padding                         15
+}
+
+block npt_pml4_cap (capType, capPML4IsMapped, capPML4MappedASID, capPML4BasePtr) {
+    field       capPML4BasePtr      64
+
+    field       capType             5
+    field       capPML4IsMapped     1
+    padding                         42
+
+    field       capPML4MappedASID   16
+}
+
+#endif
+
 -- NB: odd numbers are arch caps (see isArchCap())
 tagged_union cap capType {
     -- 5-bit tag caps
@@ -239,12 +290,20 @@ tagged_union cap capType {
     tag io_page_table_cap   17
 #endif
     tag io_port_cap         19
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
     tag vcpu_cap            21
+#endif
+#ifdef CONFIG_VTX
     tag ept_pt_cap          23
     tag ept_pd_cap          25
     tag ept_pdpt_cap        27
     tag ept_pml4_cap        29
+#endif
+#ifdef CONFIG_SVM
+    tag npt_pt_cap          23
+    tag npt_pd_cap          25
+    tag npt_pdpt_cap        27
+    tag npt_pml4_cap        29
 #endif
     tag io_port_control_cap 31
 }
@@ -441,12 +500,22 @@ block asid_map_ept {
     field type                      2
 }
 #endif
+#ifdef CONFIG_SVM
+block asid_map_npt {
+    field_high npt_root             48
+    padding                         14
+    field type                      2
+}
+#endif
 
 tagged_union asid_map type {
     tag asid_map_none 0
     tag asid_map_vspace 1
 #ifdef CONFIG_VTX
     tag asid_map_ept 2
+#endif
+#ifdef CONFIG_SVM
+    tag asid_map_npt 2
 #endif
 }
 
@@ -619,6 +688,80 @@ tagged_union ept_pde page_size {
 }
 
 block ept_pte {
+    padding                         13
+    field_high   page_base_address  39
+    field        avl_cte_depth      2
+    padding                         3
+    field        ignore_pat         1
+    field        type               3
+    field        execute            1
+    field        write              1
+    field        read               1
+}
+
+block vmx_eptp {
+    padding                         13
+    field_high paddr                39
+    padding                         5
+    field flags                     1
+    field depth_minus_1             3
+    field memory_type               3
+}
+
+#endif
+#ifdef CONFIG_SVM
+
+block npt_pml4e {
+    padding                         13
+    field_high   pdpt_base_address  39
+    padding                         9
+    field        execute            1
+    field        write              1
+    field        read               1
+}
+
+block npt_pdpte {
+    padding                         13
+    field_high   pd_base_address    39
+    field        avl_cte_depth      3
+    padding                         6
+    field        execute            1
+    field        write              1
+    field        read               1
+}
+
+block npt_pde_2m {
+    padding                         13
+    field_high   page_base_address  31
+    padding                         8
+    field        avl_cte_depth      2
+    padding                         2
+    field        page_size          1
+    field        ignore_pat         1
+    field        type               3
+    field        execute            1
+    field        write              1
+    field        read               1
+}
+
+block npt_pde_pt {
+    padding                         13
+    field_high   pt_base_address    39
+    field        avl_cte_depth      3
+    padding                         1
+    field        page_size          1
+    padding                         4
+    field        execute            1
+    field        write              1
+    field        read               1
+}
+
+tagged_union npt_pde page_size {
+    tag npt_pde_pt 0
+    tag npt_pde_2m 1
+}
+
+block npt_pte {
     padding                         13
     field_high   page_base_address  39
     field        avl_cte_depth      2

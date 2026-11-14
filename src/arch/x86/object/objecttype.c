@@ -132,6 +132,59 @@ deriveCap_ret_t Arch_deriveCap(cte_t *slot, cap_t cap)
         }
         return ret;
 #endif
+#ifdef CONFIG_SVM
+    case cap_vcpu_cap:
+        ret.cap = cap;
+        ret.status = EXCNPTION_NONE;
+        return ret;
+    case cap_npt_pml4_cap:
+        if (cap_npt_pml4_cap_get_capPML4IsMapped(cap)) {
+            ret.cap = cap;
+            ret.status = EXCNPTION_NONE;
+        } else {
+            userError("Deriving a NPT PML4 cap without an assigned ASID.");
+            current_syscall_error.type = seL4_IllegalOperation;
+            ret.cap = cap_null_cap_new();
+            ret.status = EXCNPTION_SYSCALL_ERROR;
+        }
+        return ret;
+    case cap_npt_pdpt_cap:
+        if (cap_npt_pdpt_cap_get_capPDPTIsMapped(cap)) {
+            ret.cap = cap;
+            ret.status = EXCNPTION_NONE;
+        } else {
+            userError("Deriving an unmapped NPT PDPT cap.");
+            current_syscall_error.type = seL4_IllegalOperation;
+            ret.cap = cap_null_cap_new();
+            ret.status = EXCNPTION_SYSCALL_ERROR;
+        }
+        return ret;
+
+    case cap_npt_pd_cap:
+        if (cap_npt_pd_cap_get_capPDIsMapped(cap)) {
+            ret.cap = cap;
+            ret.status = EXCNPTION_NONE;
+        } else {
+            userError("Deriving an unmapped NPT PD cap.");
+            current_syscall_error.type = seL4_IllegalOperation;
+            ret.cap = cap_null_cap_new();
+            ret.status = EXCNPTION_SYSCALL_ERROR;
+        }
+        return ret;
+
+    case cap_npt_pt_cap:
+        if (cap_npt_pt_cap_get_capPTIsMapped(cap)) {
+            ret.cap = cap;
+            ret.status = EXCNPTION_NONE;
+        } else {
+            userError("Deriving an unmapped NPT PT cap.");
+            current_syscall_error.type = seL4_IllegalOperation;
+            ret.cap = cap_null_cap_new();
+            ret.status = EXCNPTION_SYSCALL_ERROR;
+        }
+        return ret;
+#endif
+
 
     default:
         return Mode_deriveCap(slot, cap);
@@ -223,6 +276,12 @@ finaliseCap_ret_t Arch_finaliseCap(cap_t cap, bool_t final)
                                 cap_io_port_cap_get_capIOPortFirstPort(cap),
                                 cap_io_port_cap_get_capIOPortLastPort(cap));
 #endif
+#ifdef CONFIG_SVM
+        clearVPIDIOPortMappings(cap_io_port_cap_get_capIOPortVPID(cap),
+                                cap_io_port_cap_get_capIOPortFirstPort(cap),
+                                cap_io_port_cap_get_capIOPortLastPort(cap));
+#endif
+
         if (final) {
             fc_ret.remainder = cap_null_cap_new();
             fc_ret.cleanupInfo = cap;
@@ -283,6 +342,47 @@ finaliseCap_ret_t Arch_finaliseCap(cap_t cap, bool_t final)
         }
         break;
 #endif
+#ifdef CONFIG_SVM
+    case cap_vcpu_cap:
+        if (final) {
+            vcpu_finalise(VCPU_PTR(cap_vcpu_cap_get_capVCPUPtr(cap)));
+        }
+        break;
+    case cap_npt_pml4_cap:
+        if (final && cap_npt_pml4_cap_get_capPML4IsMapped(cap)) {
+            deleteNPTASID(cap_npt_pml4_cap_get_capPML4MappedASID(cap),
+                          (ept_pml4e_t *)cap_npt_pml4_cap_get_capPML4BasePtr(cap));
+        }
+        break;
+
+    case cap_npt_pdpt_cap:
+        if (final && cap_npt_pdpt_cap_get_capPDPTIsMapped(cap)) {
+            unmapNPTPDPT(
+                cap_npt_pdpt_cap_get_capPDPTMappedASID(cap),
+                cap_npt_pdpt_cap_get_capPDPTMappedAddress(cap),
+                (ept_pdpte_t *)cap_npt_pdpt_cap_get_capPDPTBasePtr(cap));
+        }
+        break;
+
+    case cap_npt_pd_cap:
+        if (final && cap_npt_pd_cap_get_capPDIsMapped(cap)) {
+            unmapNPTPageDirectory(
+                cap_npt_pd_cap_get_capPDMappedASID(cap),
+                cap_npt_pd_cap_get_capPDMappedAddress(cap),
+                (ept_pde_t *)cap_npt_pd_cap_get_capPDBasePtr(cap));
+        }
+        break;
+
+    case cap_npt_pt_cap:
+        if (final && cap_npt_pt_cap_get_capPTIsMapped(cap)) {
+            unmapNPTPageTable(
+                cap_npt_pt_cap_get_capPTMappedASID(cap),
+                cap_npt_pt_cap_get_capPTMappedAddress(cap),
+                (ept_pte_t *)cap_npt_pt_cap_get_capPTBasePtr(cap));
+        }
+        break;
+#endif
+
 
     default:
         return Mode_finaliseCap(cap, final);
@@ -403,6 +503,44 @@ bool_t CONST Arch_sameRegionAs(cap_t cap_a, cap_t cap_b)
         break;
 
 #endif
+#ifdef CONFIG_SVM
+    case cap_vcpu_cap:
+        if (cap_get_capType(cap_b) == cap_vcpu_cap) {
+            return cap_vcpu_cap_get_capVCPUPtr(cap_a) ==
+                   cap_vcpu_cap_get_capVCPUPtr(cap_b);
+        }
+        break;
+
+    case cap_npt_pml4_cap:
+        if (cap_get_capType(cap_b) == cap_npt_pml4_cap) {
+            return cap_npt_pml4_cap_get_capPML4BasePtr(cap_a) ==
+                   cap_npt_pml4_cap_get_capPML4BasePtr(cap_b);
+        }
+        break;
+
+    case cap_npt_pdpt_cap:
+        if (cap_get_capType(cap_b) == cap_npt_pdpt_cap) {
+            return cap_npt_pdpt_cap_get_capPDPTBasePtr(cap_a) ==
+                   cap_npt_pdpt_cap_get_capPDPTBasePtr(cap_b);
+        }
+        break;
+
+    case cap_npt_pd_cap:
+        if (cap_get_capType(cap_b) == cap_npt_pd_cap) {
+            return cap_npt_pd_cap_get_capPDBasePtr(cap_a) ==
+                   cap_npt_pd_cap_get_capPDBasePtr(cap_b);
+        }
+        break;
+
+    case cap_npt_pt_cap:
+        if (cap_get_capType(cap_b) == cap_npt_pt_cap) {
+            return cap_npt_pt_cap_get_capPTBasePtr(cap_a) ==
+                   cap_npt_pt_cap_get_capPTBasePtr(cap_b);
+        }
+        break;
+
+#endif
+
 
     }
 
@@ -455,6 +593,19 @@ word_t Arch_getObjectSize(word_t t)
     case seL4_X86_EPTPTObject:
         return seL4_X86_EPTPTBits;
 #endif
+#ifdef CONFIG_SVM
+    case seL4_X86_VCPUObject:
+        return seL4_X86_VCPUBits;
+    case seL4_X86_NPTPML4Object:
+        return seL4_X86_NPTPML4Bits;
+    case seL4_X86_NPTPDPTObject:
+        return seL4_X86_NPTPDPTBits;
+    case seL4_X86_NPTPDObject:
+        return seL4_X86_NPTPDBits;
+    case seL4_X86_NPTPTObject:
+        return seL4_X86_NPTPTBits;
+#endif
+
     default:
         return Mode_getObjectSize(t);
     }
@@ -499,10 +650,52 @@ cap_t Arch_createObject(object_t t, void *regionBase, word_t userSize, bool_t de
                );
     default:
 #endif
+#ifdef CONFIG_SVM
+    switch (t) {
+    case seL4_X86_VCPUObject: {
+        vcpu_t *vcpu;
+        vcpu = VCPU_PTR((word_t)regionBase);
+        vcpu_init(vcpu);
+        return cap_vcpu_cap_new(VCPU_REF(vcpu));
+    }
+    case seL4_X86_NPTPML4Object:
+        return cap_npt_pml4_cap_new(
+                   0,                  /* capPML4IsMapped      */
+                   SVASID_INVALID,       /* capPML4MappedASID    */
+                   (word_t)regionBase  /* capPML4BasePtr       */
+               );
+    case seL4_X86_NPTPDPTObject:
+        return cap_npt_pdpt_cap_new(
+                   0,                  /* capPDPTMappedAddress */
+                   0,                  /* capPDPTIsMapped      */
+                   SVASID_INVALID,       /* capPDPTMappedASID    */
+                   (word_t)regionBase   /* capPDPTBasePtr      */
+               );
+    case seL4_X86_NPTPDObject:
+        return cap_npt_pd_cap_new(
+                   0,                  /* capPDMappedAddress   */
+                   0,                  /* capPDIsMapped        */
+                   SVASID_INVALID,       /* capPDMappedASID      */
+                   (word_t)regionBase  /* capPDBasePtr         */
+               );
+    case seL4_X86_NPTPTObject:
+        return cap_npt_pt_cap_new(
+                   0,                  /* capPTMappedAddress   */
+                   0,                  /* capPTIsMapped        */
+                   SVASID_INVALID,       /* capPTMappedASID      */
+                   (word_t)regionBase  /* capPTBasePtr         */
+               );
+    default:
+#endif
+
         return Mode_createObject(t, regionBase, userSize, deviceMemory);
 #ifdef CONFIG_VTX
     }
 #endif
+#ifdef CONFIG_SVM
+    }
+#endif
+
 }
 
 exception_t Arch_decodeInvocation(
@@ -538,6 +731,16 @@ exception_t Arch_decodeInvocation(
     case cap_ept_pt_cap:
         return decodeX86EPTInvocation(invLabel, length, cptr, slot, cap, buffer);
 #endif
+#ifdef CONFIG_SVM
+    case cap_vcpu_cap:
+        return decodeX86VCPUInvocation(invLabel, length, cptr, slot, cap, call, buffer);
+    case cap_npt_pml4_cap:
+    case cap_npt_pdpt_cap:
+    case cap_npt_pd_cap:
+    case cap_npt_pt_cap:
+        return decodeX86NPTInvocation(invLabel, length, cptr, slot, cap, buffer);
+#endif
+
     default:
         return Mode_decodeInvocation(invLabel, length, cptr, slot, cap, call, buffer);
     }

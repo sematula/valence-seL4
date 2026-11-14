@@ -10,7 +10,7 @@
 #ifdef ENABLE_SMP_SUPPORT
 typedef enum {
     IpiRemoteCall_Stall,
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
     IpiRemoteCall_ClearCurrentVCPU,
     IpiRemoteCall_VMCheckBoundNotification,
 #endif

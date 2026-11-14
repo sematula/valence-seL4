@@ -53,9 +53,14 @@ uint32_t x86KSnumIODomainIDBits;
 uint32_t x86KSFirstValidIODomain;
 #endif
 
-#ifdef CONFIG_VTX
+#ifdef CONFIG_HARDWARE_VIRT
 UP_STATE_DEFINE(vcpu_t *, x86KSCurrentVCPU);
+#endif
+#ifdef CONFIG_VTX
 UP_STATE_DEFINE(struct vmxon_region, x86KSVMXOnRegion);
+#endif
+#ifdef CONFIG_SVM
+UP_STATE_DEFINE(char[SVM_HOST_SAVE_SIZE], x86KSSVMHostSave);
 #endif
 
 #ifdef CONFIG_PRINTING

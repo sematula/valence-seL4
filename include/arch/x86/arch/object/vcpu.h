@@ -9,6 +9,10 @@
 #include <config.h>
 #include <api/failures.h>
 
+#ifdef CONFIG_SVM
+#include <arch/object/svm_vcpu.h>
+#elif defined(CONFIG_VTX)
+
 #define VCPU_VMCS_SIZE 4096
 #define VCPU_IOBITMAP_SIZE 8192
 
@@ -430,3 +434,8 @@ static inline void vmwrite(word_t field, word_t value)
 #else /* CONFIG_VTX */
 #define VTX_TERNARY(vtx, nonvtx) nonvtx
 #endif /* CONFIG_VTX */
+
+#else /* neither CONFIG_SVM nor CONFIG_VTX */
+#define VTX_TERNARY(vtx, nonvtx) nonvtx
+#define SVM_TERNARY(svm, nonsvm) nonsvm
+#endif

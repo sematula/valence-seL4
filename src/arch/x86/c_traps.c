@@ -97,7 +97,7 @@ void VISIBLE NORETURN c_handle_interrupt(int irq, int syscall)
 void NORETURN slowpath(syscall_t syscall)
 {
 
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
     if (syscall == SysVMEnter && NODE_STATE(ksCurThread)->tcbArch.tcbVCPU) {
         vcpu_update_state_sysvmenter(NODE_STATE(ksCurThread)->tcbArch.tcbVCPU);
         if (NODE_STATE(ksCurThread)->tcbBoundNotification
@@ -183,7 +183,7 @@ void VISIBLE NORETURN c_handle_syscall(word_t cptr, word_t msgInfo, syscall_t sy
     UNREACHABLE();
 }
 
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
 void VISIBLE NORETURN c_handle_vmexit(void)
 {
 #ifdef TRACK_KERNEL_ENTRIES

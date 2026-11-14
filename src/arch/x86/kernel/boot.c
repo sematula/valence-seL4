@@ -422,6 +422,11 @@ BOOT_CODE bool_t init_cpu(
         return false;
     }
 #endif
+#ifdef CONFIG_SVM
+    if (!svm_init()) {
+        return false;
+    }
+#endif
 
     return true;
 }

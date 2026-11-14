@@ -40,7 +40,7 @@ static inline void doRemoteInvalidateTranslationAll(word_t mask)
     doRemoteMaskOp0Arg(IpiRemoteCall_InvalidateTranslationAll, mask);
 }
 
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
 static inline void doRemoteClearCurrentVCPU(word_t cpu)
 {
     doRemoteOp0Arg(IpiRemoteCall_ClearCurrentVCPU, cpu);

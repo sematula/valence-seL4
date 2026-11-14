@@ -41,3 +41,19 @@
 #define seL4_X86_EPTPTEntryBits   3
 #define seL4_X86_EPTPTIndexBits   9
 #define seL4_X86_EPTPTBits   (seL4_X86_EPTPTEntryBits + seL4_X86_EPTPTIndexBits)
+
+#define seL4_X86_NPTPML4EntryBits seL4_X86_EPTPML4EntryBits
+#define seL4_X86_NPTPML4IndexBits seL4_X86_EPTPML4IndexBits
+#define seL4_X86_NPTPML4Bits (seL4_X86_NPTPML4EntryBits + seL4_X86_NPTPML4IndexBits)
+
+#define seL4_X86_NPTPDPTEntryBits seL4_X86_EPTPDPTEntryBits
+#define seL4_X86_NPTPDPTIndexBits seL4_X86_EPTPDPTIndexBits
+#define seL4_X86_NPTPDPTBits (seL4_X86_NPTPDPTEntryBits + seL4_X86_NPTPDPTIndexBits)
+
+#define seL4_X86_NPTPDEntryBits   seL4_X86_EPTPDEntryBits
+#define seL4_X86_NPTPDIndexBits   seL4_X86_EPTPDIndexBits
+#define seL4_X86_NPTPDBits   (seL4_X86_NPTPDEntryBits + seL4_X86_NPTPDIndexBits)
+
+#define seL4_X86_NPTPTEntryBits   seL4_X86_EPTPTEntryBits
+#define seL4_X86_NPTPTIndexBits   seL4_X86_EPTPTIndexBits
+#define seL4_X86_NPTPTBits   (seL4_X86_NPTPTEntryBits + seL4_X86_NPTPTIndexBits)

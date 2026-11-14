@@ -25,6 +25,10 @@ typedef seL4_CPtr seL4_X86_EPTPML4;
 typedef seL4_CPtr seL4_X86_EPTPDPT;
 typedef seL4_CPtr seL4_X86_EPTPD;
 typedef seL4_CPtr seL4_X86_EPTPT;
+typedef seL4_CPtr seL4_X86_NPTPML4;
+typedef seL4_CPtr seL4_X86_NPTPDPT;
+typedef seL4_CPtr seL4_X86_NPTPD;
+typedef seL4_CPtr seL4_X86_NPTPT;
 typedef seL4_CPtr seL4_X86_VCPU;
 
 typedef enum {
@@ -47,6 +51,17 @@ typedef enum {
     seL4_X86_EPT_Default_VMAttributes = 6,
     SEL4_FORCE_LONG_ENUM(seL4_X86_EPT_VMAttributes),
 } seL4_X86_EPT_VMAttributes;
+
+typedef enum {
+    seL4_X86_NPT_Uncached_VMAttributes = 6,
+    seL4_X86_NPT_Uncacheable = 0,
+    seL4_X86_NPT_WriteCombining = 1,
+    seL4_X86_NPT_WriteThrough = 4,
+    seL4_X86_NPT_WriteProtected = 5,
+    seL4_X86_NPT_WriteBack = 6,
+    seL4_X86_NPT_Default_VMAttributes = 6,
+    SEL4_FORCE_LONG_ENUM(seL4_X86_NPT_VMAttributes),
+} seL4_X86_NPT_VMAttributes;
 
 typedef struct seL4_VCPUContext_ {
     seL4_Word eax, ebx, ecx, edx, esi, edi, ebp;

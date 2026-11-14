@@ -685,7 +685,7 @@ END_FUNC(handle_syscall)
 
 # Handle vmexit
 # RSP points to the end of the VCPUs general purpose register array
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
 BEGIN_FUNC(handle_vmexit)
 #ifndef CONFIG_X86_64_VTX_64BIT_GUESTS
     MAYBE_SWAPGS
@@ -753,4 +753,4 @@ BEGIN_FUNC(handle_vmexit)
     # Handle the vmexit, we will not return
     call    c_handle_vmexit
 END_FUNC(handle_vmexit)
-#endif /* CONFIG_VTX */
+#endif /* CONFIG_VTX || CONFIG_SVM */

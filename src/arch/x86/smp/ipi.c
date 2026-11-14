@@ -41,7 +41,7 @@ void handleRemoteCall(IpiRemoteCall_t call, word_t arg0, word_t arg1, word_t arg
             switchLocalFpuOwner((tcb_t *)arg0);
             break;
 
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
         case IpiRemoteCall_ClearCurrentVCPU:
             clearCurrentVCPU();
             break;

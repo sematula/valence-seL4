@@ -15,6 +15,7 @@
 #include <arch/object/objecttype.h>
 #include <arch/object/ioport.h>
 #include <arch/kernel/ept.h>
+#include <arch/kernel/npt.h>
 
 #include <arch/object/iospace.h>
 #include <plat/machine/intel-vtd.h>
@@ -62,6 +63,16 @@ finaliseCap_ret_t Mode_finaliseCap(cap_t cap, bool_t final)
 #ifdef CONFIG_VTX
             case X86_MappingEPT:
                 unmapEPTPage(
+                    cap_frame_cap_get_capFSize(cap),
+                    cap_frame_cap_get_capFMappedASID(cap),
+                    cap_frame_cap_get_capFMappedAddress(cap),
+                    (void *)cap_frame_cap_get_capFBasePtr(cap)
+                );
+                break;
+#endif
+#ifdef CONFIG_SVM
+            case X86_MappingNPT:
+                unmapNPTPage(
                     cap_frame_cap_get_capFSize(cap),
                     cap_frame_cap_get_capFMappedASID(cap),
                     cap_frame_cap_get_capFMappedAddress(cap),

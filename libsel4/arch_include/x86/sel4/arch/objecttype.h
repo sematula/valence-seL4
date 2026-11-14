@@ -16,12 +16,20 @@ typedef enum _object {
 #ifdef CONFIG_IOMMU
     seL4_X86_IOPageTableObject,
 #endif
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
     seL4_X86_VCPUObject,
+#endif
+#ifdef CONFIG_VTX
     seL4_X86_EPTPML4Object,
     seL4_X86_EPTPDPTObject,
     seL4_X86_EPTPDObject,
     seL4_X86_EPTPTObject,
+#endif
+#ifdef CONFIG_SVM
+    seL4_X86_NPTPML4Object,
+    seL4_X86_NPTPDPTObject,
+    seL4_X86_NPTPDObject,
+    seL4_X86_NPTPTObject,
 #endif
     seL4_ObjectTypeCount
 } seL4_ArchObjectType;
@@ -31,10 +39,18 @@ typedef seL4_Word object_t;
 #define seL4_X86_IOPageTableObject 0xffffff
 #endif
 
-#ifndef CONFIG_VTX
+#if !defined(CONFIG_VTX) && !defined(CONFIG_SVM)
 #define seL4_X86_VCPUObject 0xfffffe
+#endif
+#ifndef CONFIG_VTX
 #define seL4_X86_EPTPML4Object 0xfffffd
 #define seL4_X86_EPTPDPTObject 0xfffffc
 #define seL4_X86_EPTPDObject 0xfffffb
 #define seL4_X86_EPTPTObject 0xfffffa
+#endif
+#ifndef CONFIG_SVM
+#define seL4_X86_NPTPML4Object 0xfffffd
+#define seL4_X86_NPTPDPTObject 0xfffffc
+#define seL4_X86_NPTPDObject 0xfffffb
+#define seL4_X86_NPTPTObject 0xfffffa
 #endif
