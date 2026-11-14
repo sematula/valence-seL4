@@ -552,7 +552,7 @@ LIBSEL4_INLINE_FUNC void seL4_Yield(void)
     asm volatile("" ::: "memory");
 }
 
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
 LIBSEL4_INLINE_FUNC seL4_Word seL4_VMEnter(seL4_Word *sender)
 {
     seL4_Word fault;
@@ -573,7 +573,7 @@ LIBSEL4_INLINE_FUNC seL4_Word seL4_VMEnter(seL4_Word *sender)
     }
     return fault;
 }
-#endif
+#endif /* CONFIG_VTX || CONFIG_SVM */
 
 #ifdef CONFIG_PRINTING
 LIBSEL4_INLINE_FUNC void seL4_DebugPutChar(char c)

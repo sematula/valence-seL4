@@ -331,7 +331,7 @@ seL4_BenchmarkResetAllThreadsUtilisation(void);
  * @{
  */
 
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
 /**
  * @xmlonly <manual name="VM Enter" label="sel4_vmenter"/> @endxmlonly
  * @brief Change current thread to execute from its bound VCPU
@@ -381,7 +381,7 @@ seL4_BenchmarkResetAllThreadsUtilisation(void);
  */
 LIBSEL4_INLINE_FUNC seL4_Word
 seL4_VMEnter(seL4_Word *sender);
-#endif
+#endif /* CONFIG_VTX || CONFIG_SVM */
 
 /** @} */
 #endif

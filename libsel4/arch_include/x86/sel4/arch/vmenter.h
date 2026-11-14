@@ -6,7 +6,7 @@
 
 #pragma once
 
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
 typedef enum kernel_fault_context {
     /*
      * When performing a seL4_SysVMEnter seL4 expects certain guest state to be
@@ -37,7 +37,7 @@ typedef enum kernel_fault_context {
     SEL4_VMENTER_FAULT_ESI,
     SEL4_VMENTER_FAULT_EDI,
     SEL4_VMENTER_FAULT_EBP,
-#ifdef CONFIG_X86_64_VTX_64BIT_GUESTS
+#if defined(CONFIG_X86_64_VTX_64BIT_GUESTS) || defined(CONFIG_X86_64_SVM_64BIT_GUESTS)
     SEL4_VMENTER_FAULT_R8,
     SEL4_VMENTER_FAULT_R9,
     SEL4_VMENTER_FAULT_R10,

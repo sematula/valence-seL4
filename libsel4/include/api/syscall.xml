@@ -96,7 +96,12 @@
              Therefore we'll put this here and the arch code will handle it before
              passing to handleUnknownSyscall -->
         <config>
-            <condition><config var="CONFIG_VTX"/></condition>
+            <condition>
+                <or>
+                    <config var="CONFIG_VTX"/>
+                    <config var="CONFIG_SVM"/>
+                </or>
+            </condition>
             <syscall name="VMEnter"/>
         </config>
         <config>
