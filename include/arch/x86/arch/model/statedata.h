@@ -54,8 +54,11 @@ NODE_STATE_DECLARE(vcpu_t *, x86KSCurrentVCPU);
 NODE_STATE_DECLARE(struct vmxon_region, x86KSVMXOnRegion);
 #endif
 #ifdef CONFIG_SVM
+/* AMD requires VM_HSAVE_PA to be 4KiB-aligned; #GP otherwise (APM Vol 2). */
 #define SVM_HOST_SAVE_SIZE 4096
-typedef char svm_host_save_t[SVM_HOST_SAVE_SIZE];
+typedef struct svm_host_save {
+    char data[SVM_HOST_SAVE_SIZE];
+} ALIGN(SVM_HOST_SAVE_SIZE) svm_host_save_t;
 NODE_STATE_DECLARE(svm_host_save_t, x86KSSVMHostSave);
 #endif
 
