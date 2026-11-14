@@ -76,8 +76,10 @@ static void set_default_intercepts(vcpu_t *vcpu)
     word_t i2 = vmcb_read(vcpu, VMCB_CONTROL_INTERCEPT_INSTRUCTION2);
 
     /* Safe single-level defaults; VMRUN intercept keeps Nested SVM off.
-     * Do not set INTERCEPT_MSR until MSRPM_BASE_PA points at a valid 8KiB map
-     * — otherwise VMRUN fails with VMEXIT_INVALID. */
+     * INTERCEPT_MSR stays off until a dedicated MSRPM is allocated — the IO
+     * bitmap is reused only as a legal MSRPM PA placeholder for nested KVM,
+     * which validates MSRPM/IOPM GPAs even when the corresponding intercept is
+     * clear. */
     i1 |= VMCB_INTERCEPT_CPUID | VMCB_INTERCEPT_HLT | VMCB_INTERCEPT_IO |
           VMCB_INTERCEPT_SHUTDOWN;
     i2 |= VMCB_INTERCEPT_VMRUN;
@@ -113,6 +115,10 @@ void vcpu_init(vcpu_t *vcpu)
     set_default_intercepts(vcpu);
     memset(vcpu->io, ~(word_t)0, VCPU_IOBITMAP_SIZE);
     vmcb_write(vcpu, VMCB_CONTROL_IOPM_BASE_PA, pptr_to_paddr(vcpu->io));
+    /* Nested KVM always checks MSRPM GPA legality; point at the 8KiB IO map. */
+    vmcb_write(vcpu, VMCB_CONTROL_MSRPM_BASE_PA, pptr_to_paddr(vcpu->io));
+    /* DR7 bit 10 is reserved-as-1; zero fails some nested validity checks. */
+    vmcb_write(vcpu, VMCB_STATE_GUEST_DR7, 0x400);
 }
 
 static void dissociateVcpuTcb(tcb_t *tcb, vcpu_t *vcpu)
@@ -578,6 +584,32 @@ void restoreSVM(void)
         storeSVASID(expected, svasid);
     }
     setNPTRoot(TCB_PTR_CTE_PTR(cur_thread, tcbArchNPTRoot)->cap, expected);
+
+    /* Temporary VMRUN diagnostics for #31. */
+    printf("svm: VMCB pa=0x%lx asid=%u np=0x%lx ncr3=0x%lx iopm=0x%lx msrpm=0x%lx\n",
+           pptr_to_paddr(expected->vmcb),
+           (unsigned)vmcb_read(expected, VMCB_CONTROL_GUEST_ASID) & 0xffffffffu,
+           vmcb_read(expected, VMCB_CONTROL_NP_ENABLE),
+           vmcb_read(expected, VMCB_CONTROL_NCR3),
+           vmcb_read(expected, VMCB_CONTROL_IOPM_BASE_PA),
+           vmcb_read(expected, VMCB_CONTROL_MSRPM_BASE_PA));
+    printf("svm: i1=0x%x i2=0x%x cr0=0x%lx cr3=0x%lx cr4=0x%lx efer=0x%lx rflags=0x%lx rip=0x%lx\n",
+           (unsigned)vmcb_read(expected, VMCB_CONTROL_INTERCEPT_INSTRUCTION1) & 0xffffffffu,
+           (unsigned)vmcb_read(expected, VMCB_CONTROL_INTERCEPT_INSTRUCTION2) & 0xffffffffu,
+           vmcb_read(expected, VMCB_STATE_GUEST_CR0),
+           vmcb_read(expected, VMCB_STATE_GUEST_CR3),
+           vmcb_read(expected, VMCB_STATE_GUEST_CR4),
+           vmcb_read(expected, VMCB_STATE_GUEST_EFER),
+           vmcb_read(expected, VMCB_STATE_GUEST_RFLAGS),
+           vmcb_read(expected, VMCB_STATE_GUEST_RIP));
+    printf("svm: cs=0x%lx es=0x%lx ss=0x%lx gdtr=0x%lx/%lx idtr=0x%lx/%lx tr=0x%lx eventinj=0x%lx\n",
+           vmcb_read(expected, 0x410),
+           vmcb_read(expected, 0x400),
+           vmcb_read(expected, 0x420),
+           vmcb_read(expected, 0x460), vmcb_read(expected, 0x468),
+           vmcb_read(expected, 0x480), vmcb_read(expected, 0x488),
+           vmcb_read(expected, 0x490),
+           vmcb_read(expected, VMCB_CONTROL_EVENTINJ));
 }
 
 void invnpt(npt_pml4e_t *npt_pml4)
