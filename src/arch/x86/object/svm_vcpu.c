@@ -319,8 +319,11 @@ exception_t decodeX86VCPUInvocation(
 void vcpu_update_state_sysvmenter(vcpu_t *vcpu)
 {
     word_t *buffer = lookupIPCBuffer(true, NODE_STATE(ksCurThread));
+    /* Match VT-x / Microkit SysVMEnter MRs: RIP, PPC/intercepts, irq — not RFLAGS.
+     * Writing arg2 into RFLAGS cleared bit 1 and made VMRUN return VMEXIT_INVALID. */
     vmcb_write(vcpu, VMCB_STATE_GUEST_RIP, getSyscallArg(0, buffer));
-    vmcb_write(vcpu, VMCB_STATE_GUEST_RFLAGS, getSyscallArg(2, buffer));
+    (void)getSyscallArg(1, buffer); /* intercepts stay at kernel defaults for now */
+    vmcb_write(vcpu, VMCB_CONTROL_EVENTINJ, getSyscallArg(2, buffer));
 }
 
 void vcpu_sysvmenter_reply_to_user(tcb_t *tcb)
