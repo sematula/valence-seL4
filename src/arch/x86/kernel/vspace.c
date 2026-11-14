@@ -1373,7 +1373,9 @@ exception_t decodeX86MMUInvocation(
         vspaceCapSlot = current_extra_caps.excaprefs[0];
         vspaceCap = vspaceCapSlot->cap;
 
-        if (!(isVTableRoot(vspaceCap) || VTX_TERNARY(cap_get_capType(vspaceCap) == cap_ept_pml4_cap, 0))
+        if (!(isVTableRoot(vspaceCap)
+              || VTX_TERNARY(cap_get_capType(vspaceCap) == cap_ept_pml4_cap, 0)
+              || SVM_TERNARY(cap_get_capType(vspaceCap) == cap_npt_pml4_cap, 0))
             || cap_get_capMappedASID(vspaceCap) != asidInvalid) {
             userError("X86ASIDPool: Invalid vspace root.");
             current_syscall_error.type = seL4_InvalidCapability;

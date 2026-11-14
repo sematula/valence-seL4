@@ -46,7 +46,7 @@ void activateThread(void)
 
     switch (thread_state_get_tsType(NODE_STATE(ksCurThread)->tcbState)) {
     case ThreadState_Running:
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
     case ThreadState_RunningVM:
 #endif
         break;
@@ -677,7 +677,7 @@ void timerTick(void)
 {
     if (likely(thread_state_get_tsType(NODE_STATE(ksCurThread)->tcbState) ==
                ThreadState_Running)
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
         || thread_state_get_tsType(NODE_STATE(ksCurThread)->tcbState) ==
         ThreadState_RunningVM
 #endif

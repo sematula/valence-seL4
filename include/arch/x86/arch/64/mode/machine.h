@@ -272,7 +272,7 @@ static inline void x86_save_fsgs_base(tcb_t *thread, cpu_id_t cpu)
      * These should only be accessed inside the kernel, between the
      * entry and exit calls to swapgs if used.
      */
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
     if (thread_state_ptr_get_tsType(&thread->tcbState) == ThreadState_RunningVM) {
         /*
          * Never save the FS/GS of a thread running in a VM as it will

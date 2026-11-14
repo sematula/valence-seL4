@@ -55,7 +55,8 @@ NODE_STATE_DECLARE(struct vmxon_region, x86KSVMXOnRegion);
 #endif
 #ifdef CONFIG_SVM
 #define SVM_HOST_SAVE_SIZE 4096
-NODE_STATE_DECLARE(char[SVM_HOST_SAVE_SIZE], x86KSSVMHostSave);
+typedef char svm_host_save_t[SVM_HOST_SAVE_SIZE];
+NODE_STATE_DECLARE(svm_host_save_t, x86KSSVMHostSave);
 #endif
 
 NODE_STATE_END(archNodeState);

@@ -60,7 +60,7 @@ UP_STATE_DEFINE(vcpu_t *, x86KSCurrentVCPU);
 UP_STATE_DEFINE(struct vmxon_region, x86KSVMXOnRegion);
 #endif
 #ifdef CONFIG_SVM
-UP_STATE_DEFINE(char[SVM_HOST_SAVE_SIZE], x86KSSVMHostSave);
+UP_STATE_DEFINE(svm_host_save_t, x86KSSVMHostSave);
 #endif
 
 #ifdef CONFIG_PRINTING

@@ -128,7 +128,8 @@ genbf(
 if(KernelIsMCS)
     set(mcs --mcs)
 endif()
-if(KernelX86_64VTX64BitGuests)
+if(KernelX86_64VTX64BitGuests OR KernelX86_64SVM64BitGuests)
+    # Stub generator flag name is historical (VT-x); size applies to SVM 64-bit too.
     set(64bitguests --x86-vtx-64-bit-guests)
 endif()
 add_custom_command(

@@ -9,6 +9,7 @@
 #include <api/syscall.h>
 #include <machine/io.h>
 #include <arch/object/ioport.h>
+#include <arch/object/vcpu.h>
 #include <arch/api/invocation.h>
 #include <plat/machine/io.h>
 
@@ -93,6 +94,8 @@ static exception_t invokeX86PortControl(uint16_t first_port, uint16_t last_port,
     cteInsert(cap_io_port_cap_new(first_port, last_port
 #ifdef CONFIG_VTX
                                   , VPID_INVALID
+#elif defined(CONFIG_SVM)
+                                  , SVASID_INVALID
 #endif
                                  ),
               controlSlot, ioportSlot);

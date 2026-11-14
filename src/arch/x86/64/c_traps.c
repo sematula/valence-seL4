@@ -208,78 +208,80 @@ static void NORETURN restore_svm(tcb_t *cur_thread, vcpu_t *vcpu)
 #endif
     /*
      * VMRUN takes VMCB PA in %rax. Guest RAX lives in the VMCB state save;
-     * other GPRs are restored from vcpu->gp_registers. On #VMEXIT the CPU
-     * returns to the next instruction with host RSP from HSAVE — we then
-     * stash guest GPRs and enter c_handle_vmexit (does not return).
+     * other GPRs come from vcpu->gp_registers. Host RSP is restored from
+     * HSAVE on #VMEXIT, so we keep the regs pointer on the stack across
+     * VMRUN (avoids "r" constraints that conflict with full GPR clobbers).
      */
     uint64_t vmcb_phys = pptr_to_paddr(vcpu->vmcb);
     word_t *regs = vcpu->gp_registers;
     asm volatile(
-        "movq %c[ebx](%[regs]), %%rbx\n"
-        "movq %c[ecx](%[regs]), %%rcx\n"
-        "movq %c[edx](%[regs]), %%rdx\n"
-        "movq %c[esi](%[regs]), %%rsi\n"
-        "movq %c[edi](%[regs]), %%rdi\n"
-        "movq %c[ebp](%[regs]), %%rbp\n"
+        "pushq %[regs]\n"
+        "movq (%%rsp), %%r11\n"
+        "movq %c[ebx](%%r11), %%rbx\n"
+        "movq %c[ecx](%%r11), %%rcx\n"
+        "movq %c[edx](%%r11), %%rdx\n"
+        "movq %c[esi](%%r11), %%rsi\n"
+        "movq %c[edi](%%r11), %%rdi\n"
+        "movq %c[ebp](%%r11), %%rbp\n"
 #ifdef CONFIG_X86_64_SVM_64BIT_GUESTS
-        "movq %c[r8](%[regs]), %%r8\n"
-        "movq %c[r9](%[regs]), %%r9\n"
-        "movq %c[r10](%[regs]), %%r10\n"
-        "movq %c[r11](%[regs]), %%r11\n"
-        "movq %c[r12](%[regs]), %%r12\n"
-        "movq %c[r13](%[regs]), %%r13\n"
-        "movq %c[r14](%[regs]), %%r14\n"
-        "movq %c[r15](%[regs]), %%r15\n"
+        "movq %c[r8](%%r11), %%r8\n"
+        "movq %c[r9](%%r11), %%r9\n"
+        "movq %c[r10](%%r11), %%r10\n"
+        "movq %c[r12](%%r11), %%r12\n"
+        "movq %c[r13](%%r11), %%r13\n"
+        "movq %c[r14](%%r11), %%r14\n"
+        "movq %c[r15](%%r11), %%r15\n"
+        /* r11 last: still holding regs base until overwritten */
+        "movq %c[r11](%%r11), %%r11\n"
 #endif
         "movq %[vmcb], %%rax\n"
         "vmrun %%rax\n"
-        /* #VMEXIT: save guest GPRs; guest RAX is in VMCB. */
-        "movq %%rbx, %c[ebx](%[regs])\n"
-        "movq %%rcx, %c[ecx](%[regs])\n"
-        "movq %%rdx, %c[edx](%[regs])\n"
-        "movq %%rsi, %c[esi](%[regs])\n"
-        "movq %%rdi, %c[edi](%[regs])\n"
-        "movq %%rbp, %c[ebp](%[regs])\n"
+        /* #VMEXIT: host RSP restored; regs pointer still on stack. */
+        "movq (%%rsp), %%rax\n"
+        "movq %%rbx, %c[ebx](%%rax)\n"
+        "movq %%rcx, %c[ecx](%%rax)\n"
+        "movq %%rdx, %c[edx](%%rax)\n"
+        "movq %%rsi, %c[esi](%%rax)\n"
+        "movq %%rdi, %c[edi](%%rax)\n"
+        "movq %%rbp, %c[ebp](%%rax)\n"
 #ifdef CONFIG_X86_64_SVM_64BIT_GUESTS
-        "movq %%r8, %c[r8](%[regs])\n"
-        "movq %%r9, %c[r9](%[regs])\n"
-        "movq %%r10, %c[r10](%[regs])\n"
-        "movq %%r11, %c[r11](%[regs])\n"
-        "movq %%r12, %c[r12](%[regs])\n"
-        "movq %%r13, %c[r13](%[regs])\n"
-        "movq %%r14, %c[r14](%[regs])\n"
-        "movq %%r15, %c[r15](%[regs])\n"
+        "movq %%r8, %c[r8](%%rax)\n"
+        "movq %%r9, %c[r9](%%rax)\n"
+        "movq %%r10, %c[r10](%%rax)\n"
+        "movq %%r11, %c[r11](%%rax)\n"
+        "movq %%r12, %c[r12](%%rax)\n"
+        "movq %%r13, %c[r13](%%rax)\n"
+        "movq %%r14, %c[r14](%%rax)\n"
+        "movq %%r15, %c[r15](%%rax)\n"
 #endif
+        "addq $8, %%rsp\n"
         :
-        : [regs]"r"(regs),
-        [vmcb]"r"(vmcb_phys),
-        [ebx]"i"(VCPU_EBX * sizeof(word_t)),
-        [ecx]"i"(VCPU_ECX * sizeof(word_t)),
-        [edx]"i"(VCPU_EDX * sizeof(word_t)),
-        [esi]"i"(VCPU_ESI * sizeof(word_t)),
-        [edi]"i"(VCPU_EDI * sizeof(word_t)),
-        [ebp]"i"(VCPU_EBP * sizeof(word_t))
+        : [regs] "m" (regs),
+        [vmcb] "m" (vmcb_phys),
+        [ebx] "i" (VCPU_EBX * sizeof(word_t)),
+        [ecx] "i" (VCPU_ECX * sizeof(word_t)),
+        [edx] "i" (VCPU_EDX * sizeof(word_t)),
+        [esi] "i" (VCPU_ESI * sizeof(word_t)),
+        [edi] "i" (VCPU_EDI * sizeof(word_t)),
+        [ebp] "i" (VCPU_EBP * sizeof(word_t))
 #ifdef CONFIG_X86_64_SVM_64BIT_GUESTS
-        , [r8]"i"(VCPU_R8 * sizeof(word_t)),
-        [r9]"i"(VCPU_R9 * sizeof(word_t)),
-        [r10]"i"(VCPU_R10 * sizeof(word_t)),
-        [r11]"i"(VCPU_R11 * sizeof(word_t)),
-        [r12]"i"(VCPU_R12 * sizeof(word_t)),
-        [r13]"i"(VCPU_R13 * sizeof(word_t)),
-        [r14]"i"(VCPU_R14 * sizeof(word_t)),
-        [r15]"i"(VCPU_R15 * sizeof(word_t))
+        , [r8] "i" (VCPU_R8 * sizeof(word_t)),
+        [r9] "i" (VCPU_R9 * sizeof(word_t)),
+        [r10] "i" (VCPU_R10 * sizeof(word_t)),
+        [r11] "i" (VCPU_R11 * sizeof(word_t)),
+        [r12] "i" (VCPU_R12 * sizeof(word_t)),
+        [r13] "i" (VCPU_R13 * sizeof(word_t)),
+        [r14] "i" (VCPU_R14 * sizeof(word_t)),
+        [r15] "i" (VCPU_R15 * sizeof(word_t))
 #endif
-        : "memory", "cc", "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp"
+        : "memory", "cc", "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "r11"
 #ifdef CONFIG_X86_64_SVM_64BIT_GUESTS
-        , "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
+        , "r8", "r9", "r10", "r12", "r13", "r14", "r15"
 #endif
     );
     /* Pull guest RAX from VMCB state save into the GPR array. */
     regs[VCPU_EAX] = vmcb_read(vcpu, VMCB_STATE_GUEST_RAX);
-    {
-        extern void c_handle_vmexit(void);
-        c_handle_vmexit();
-    }
+    c_handle_vmexit();
     UNREACHABLE();
 }
 #endif

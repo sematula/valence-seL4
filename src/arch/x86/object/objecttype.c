@@ -135,52 +135,52 @@ deriveCap_ret_t Arch_deriveCap(cte_t *slot, cap_t cap)
 #ifdef CONFIG_SVM
     case cap_vcpu_cap:
         ret.cap = cap;
-        ret.status = EXCNPTION_NONE;
+        ret.status = EXCEPTION_NONE;
         return ret;
     case cap_npt_pml4_cap:
         if (cap_npt_pml4_cap_get_capPML4IsMapped(cap)) {
             ret.cap = cap;
-            ret.status = EXCNPTION_NONE;
+            ret.status = EXCEPTION_NONE;
         } else {
             userError("Deriving a NPT PML4 cap without an assigned ASID.");
             current_syscall_error.type = seL4_IllegalOperation;
             ret.cap = cap_null_cap_new();
-            ret.status = EXCNPTION_SYSCALL_ERROR;
+            ret.status = EXCEPTION_SYSCALL_ERROR;
         }
         return ret;
     case cap_npt_pdpt_cap:
         if (cap_npt_pdpt_cap_get_capPDPTIsMapped(cap)) {
             ret.cap = cap;
-            ret.status = EXCNPTION_NONE;
+            ret.status = EXCEPTION_NONE;
         } else {
             userError("Deriving an unmapped NPT PDPT cap.");
             current_syscall_error.type = seL4_IllegalOperation;
             ret.cap = cap_null_cap_new();
-            ret.status = EXCNPTION_SYSCALL_ERROR;
+            ret.status = EXCEPTION_SYSCALL_ERROR;
         }
         return ret;
 
     case cap_npt_pd_cap:
         if (cap_npt_pd_cap_get_capPDIsMapped(cap)) {
             ret.cap = cap;
-            ret.status = EXCNPTION_NONE;
+            ret.status = EXCEPTION_NONE;
         } else {
             userError("Deriving an unmapped NPT PD cap.");
             current_syscall_error.type = seL4_IllegalOperation;
             ret.cap = cap_null_cap_new();
-            ret.status = EXCNPTION_SYSCALL_ERROR;
+            ret.status = EXCEPTION_SYSCALL_ERROR;
         }
         return ret;
 
     case cap_npt_pt_cap:
         if (cap_npt_pt_cap_get_capPTIsMapped(cap)) {
             ret.cap = cap;
-            ret.status = EXCNPTION_NONE;
+            ret.status = EXCEPTION_NONE;
         } else {
             userError("Deriving an unmapped NPT PT cap.");
             current_syscall_error.type = seL4_IllegalOperation;
             ret.cap = cap_null_cap_new();
-            ret.status = EXCNPTION_SYSCALL_ERROR;
+            ret.status = EXCEPTION_SYSCALL_ERROR;
         }
         return ret;
 #endif
@@ -277,9 +277,9 @@ finaliseCap_ret_t Arch_finaliseCap(cap_t cap, bool_t final)
                                 cap_io_port_cap_get_capIOPortLastPort(cap));
 #endif
 #ifdef CONFIG_SVM
-        clearVPIDIOPortMappings(cap_io_port_cap_get_capIOPortVPID(cap),
-                                cap_io_port_cap_get_capIOPortFirstPort(cap),
-                                cap_io_port_cap_get_capIOPortLastPort(cap));
+        clearSVASIDIOPortMappings(cap_io_port_cap_get_capIOPortVPID(cap),
+                                  cap_io_port_cap_get_capIOPortFirstPort(cap),
+                                  cap_io_port_cap_get_capIOPortLastPort(cap));
 #endif
 
         if (final) {
@@ -351,7 +351,7 @@ finaliseCap_ret_t Arch_finaliseCap(cap_t cap, bool_t final)
     case cap_npt_pml4_cap:
         if (final && cap_npt_pml4_cap_get_capPML4IsMapped(cap)) {
             deleteNPTASID(cap_npt_pml4_cap_get_capPML4MappedASID(cap),
-                          (ept_pml4e_t *)cap_npt_pml4_cap_get_capPML4BasePtr(cap));
+                          (npt_pml4e_t *)cap_npt_pml4_cap_get_capPML4BasePtr(cap));
         }
         break;
 
@@ -360,7 +360,7 @@ finaliseCap_ret_t Arch_finaliseCap(cap_t cap, bool_t final)
             unmapNPTPDPT(
                 cap_npt_pdpt_cap_get_capPDPTMappedASID(cap),
                 cap_npt_pdpt_cap_get_capPDPTMappedAddress(cap),
-                (ept_pdpte_t *)cap_npt_pdpt_cap_get_capPDPTBasePtr(cap));
+                (npt_pdpte_t *)cap_npt_pdpt_cap_get_capPDPTBasePtr(cap));
         }
         break;
 
@@ -369,7 +369,7 @@ finaliseCap_ret_t Arch_finaliseCap(cap_t cap, bool_t final)
             unmapNPTPageDirectory(
                 cap_npt_pd_cap_get_capPDMappedASID(cap),
                 cap_npt_pd_cap_get_capPDMappedAddress(cap),
-                (ept_pde_t *)cap_npt_pd_cap_get_capPDBasePtr(cap));
+                (npt_pde_t *)cap_npt_pd_cap_get_capPDBasePtr(cap));
         }
         break;
 
@@ -378,7 +378,7 @@ finaliseCap_ret_t Arch_finaliseCap(cap_t cap, bool_t final)
             unmapNPTPageTable(
                 cap_npt_pt_cap_get_capPTMappedASID(cap),
                 cap_npt_pt_cap_get_capPTMappedAddress(cap),
-                (ept_pte_t *)cap_npt_pt_cap_get_capPTBasePtr(cap));
+                (npt_pte_t *)cap_npt_pt_cap_get_capPTBasePtr(cap));
         }
         break;
 #endif

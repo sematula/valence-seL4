@@ -474,7 +474,9 @@ void vcpu_fpu_to_host(tcb_t *tcb, vcpu_t *vcpu)
 
 static void flush_guest_tlb(svasid_t svasid)
 {
-    asm volatile("invlpga (%0), %1" :: "r"(0), "r"((word_t)svasid) : "memory");
+    /* invlpga: RAX = VA, ECX = ASID. */
+    asm volatile("invlpga %%rax, %%ecx"
+                 :: "a"((word_t)0), "c"((word_t)svasid) : "memory");
 }
 
 static void setNPTRoot(cap_t nptSpace, vcpu_t *vcpu)

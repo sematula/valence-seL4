@@ -87,7 +87,7 @@ void sendSignal(notification_t *ntfnPtr, word_t badge)
                     }
                 }
 #endif
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
             } else if (thread_state_ptr_get_tsType(&tcb->tcbState) == ThreadState_RunningVM) {
 #ifdef ENABLE_SMP_SUPPORT
                 if (tcb->tcbAffinity != getCurrentCPUIndex()) {

@@ -65,7 +65,7 @@ typedef enum {
 
 typedef struct seL4_VCPUContext_ {
     seL4_Word eax, ebx, ecx, edx, esi, edi, ebp;
-#ifdef CONFIG_X86_64_VTX_64BIT_GUESTS
+#if defined(CONFIG_X86_64_VTX_64BIT_GUESTS) || defined(CONFIG_X86_64_SVM_64BIT_GUESTS)
     seL4_Word r8, r9, r10, r11, r12, r13, r14, r15;
 #endif
 } seL4_VCPUContext;

@@ -11,6 +11,8 @@
 
 #ifdef CONFIG_SVM
 #include <arch/object/svm_vcpu.h>
+/* VT-x-only expressions should compile out on the SVM board. */
+#define VTX_TERNARY(vtx, nonvtx) nonvtx
 #elif defined(CONFIG_VTX)
 
 #define VCPU_VMCS_SIZE 4096

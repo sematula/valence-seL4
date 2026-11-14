@@ -100,7 +100,7 @@ static inline void debug_printTCB(tcb_t *tcb)
     case ThreadState_BlockedOnNotification:
         state = "blocked on ntfn";
         break;
-#ifdef CONFIG_VTX
+#if defined(CONFIG_VTX) || defined(CONFIG_SVM)
     case ThreadState_RunningVM:
         state = "running VM";
         break;
