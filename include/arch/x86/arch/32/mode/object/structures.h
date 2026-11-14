@@ -95,6 +95,10 @@ static inline asid_t PURE cap_get_capMappedASID(cap_t cap)
     case cap_ept_pml4_cap:
         return cap_ept_pml4_cap_get_capPML4MappedASID(cap);
 #endif
+#ifdef CONFIG_SVM
+    case cap_npt_pml4_cap:
+        return cap_npt_pml4_cap_get_capPML4MappedASID(cap);
+#endif
 
     default:
         fail("Invalid arch cap type");

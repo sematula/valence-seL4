@@ -806,6 +806,13 @@ exception_t performASIDPoolInvocation(asid_t asid, asid_pool_t *poolPtr, cte_t *
         asid_map = asid_map_asid_map_ept_new(cap_ept_pml4_cap_get_capPML4BasePtr(vspaceCapSlot->cap));
     } else
 #endif
+#ifdef CONFIG_SVM
+    if (cap_get_capType(vspaceCapSlot->cap) == cap_npt_pml4_cap) {
+        cap_npt_pml4_cap_ptr_set_capPML4MappedASID(&vspaceCapSlot->cap, asid);
+        cap_npt_pml4_cap_ptr_set_capPML4IsMapped(&vspaceCapSlot->cap, 1);
+        asid_map = asid_map_asid_map_npt_new(cap_npt_pml4_cap_get_capPML4BasePtr(vspaceCapSlot->cap));
+    } else
+#endif
     {
         assert(cap_get_capType(vspaceCapSlot->cap) == cap_pml4_cap);
         cap_pml4_cap_ptr_set_capPML4MappedASID(&vspaceCapSlot->cap, asid);
