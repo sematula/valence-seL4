@@ -16,6 +16,7 @@
 #define APIC_TIMER_MODE_ONE_SHOT 0
 #define APIC_TIMER_MODE_TSC_DEADLINE  2
 
+#if CONFIG_PC99_TSC_FREQUENCY == 0
 static BOOT_CODE uint32_t apic_measure_freq(void)
 {
     pit_init();
@@ -32,6 +33,7 @@ static BOOT_CODE uint32_t apic_measure_freq(void)
     /* calculate APIC/bus cycles per ms = frequency in kHz */
     return (0xffffffff - apic_read_reg(APIC_TIMER_CURRENT)) / PIT_WRAPAROUND_MS;
 }
+#endif
 
 BOOT_CODE paddr_t apic_get_base_paddr(void)
 {
@@ -58,15 +60,35 @@ BOOT_CODE bool_t apic_init(bool_t mask_legacy_irqs)
     /* can we use tsc deadline mode? */
     uint32_t cpuid = x86_cpuid_ecx(0x1, 0x0);
     if (!(cpuid & BIT(CPUID_TSC_DEADLINE_BIT))) {
+#if CONFIG_PC99_TSC_FREQUENCY > 0
+        /*
+         * Hyper-V Gen2 (and similar) do not emulate the legacy PIT.
+         * Boards that already supply a fixed CONFIG_PC99_TSC_FREQUENCY so
+         * tsc_init() can skip PIT must also skip PIT-based APIC calibration,
+         * otherwise boot hangs in pit_wait_wraparound() after
+         * "Mapping kernel window is done". Assume a 1:1 TSC↔APIC tick rate
+         * as a boot placeholder; absolute timer accuracy is secondary here
+         * (guest time later uses HPET/sDDF).
+         */
+        apic_khz = (uint32_t)(CONFIG_PC99_TSC_FREQUENCY / 1000u);
+        x86KSapicRatio = div64((uint64_t)x86KStscMhz * 1000llu, apic_khz);
+        printf("Apic Khz %lu (no-PIT; CONFIG_PC99_TSC_FREQUENCY), TSC Mhz %lu, ratio %lu\n",
+               (long) apic_khz, (long) x86KStscMhz, (long) x86KSapicRatio);
+#else
         apic_khz = apic_measure_freq();
         x86KSapicRatio = div64((uint64_t)x86KStscMhz * 1000llu, apic_khz);
         printf("Apic Khz %lu, TSC Mhz %lu, ratio %lu\n", (long) apic_khz, (long) x86KStscMhz, (long) x86KSapicRatio);
+#endif
     } else {
         // use tsc deadline mode
         x86KSapicRatio = 0;
     }
 #else
+#if CONFIG_PC99_TSC_FREQUENCY > 0
+    apic_khz = (uint32_t)(CONFIG_PC99_TSC_FREQUENCY / 1000u);
+#else
     apic_khz = apic_measure_freq();
+#endif
 #endif
     apic_version.words[0] = apic_read_reg(APIC_VERSION);
 
