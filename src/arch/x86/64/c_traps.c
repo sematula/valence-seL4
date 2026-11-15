@@ -207,6 +207,15 @@ static void NORETURN restore_svm(tcb_t *cur_thread, vcpu_t *vcpu)
     loadAllDisabledBreakpointState(cur_thread);
 #endif
     /*
+     * Nested KVM / some SVM paths honor FS/GS bases from the MSRs more
+     * reliably than from VMCB alone. Mirror VT-x: load guest FS/GS from the
+     * VMCB state-save bases into the real MSRs before VMRUN. KERNEL_GS_BASE
+     * is still a follow-up (no VMCB field); early bring-up needs GS for
+     * percpu before SWAPGS.
+     */
+    x86_wrmsr(IA32_FS_BASE_MSR, vmcb_read(vcpu, VMCB_STATE_FS + 8));
+    x86_wrmsr(IA32_GS_BASE_MSR, vmcb_read(vcpu, VMCB_STATE_GS + 8));
+    /*
      * VMRUN takes VMCB PA in %rax. Guest RAX lives in the VMCB state save;
      * other GPRs come from vcpu->gp_registers. Host RSP is restored from
      * HSAVE on #VMEXIT, so we keep the regs pointer on the stack across

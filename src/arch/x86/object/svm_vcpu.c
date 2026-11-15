@@ -76,12 +76,12 @@ static void set_default_intercepts(vcpu_t *vcpu)
     word_t i2 = vmcb_read(vcpu, VMCB_CONTROL_INTERCEPT_INSTRUCTION2);
 
     /* Safe single-level defaults; VMRUN intercept keeps Nested SVM off.
-     * INTERCEPT_MSR stays off until a dedicated MSRPM is allocated — the IO
-     * bitmap is reused only as a legal MSRPM PA placeholder for nested KVM,
-     * which validates MSRPM/IOPM GPAs even when the corresponding intercept is
-     * clear. */
+     * INTERCEPT_MSR is on with the IO bitmap reused as an all-1s MSRPM
+     * placeholder (nested KVM requires a legal MSRPM GPA). Soft LAPIC needs
+     * this so L2 cannot RDMSR host IA32_APIC_BASE. A dedicated MSRPM is still
+     * follow-up work (COM1 IOPM clears also punch MSRPM holes today). */
     i1 |= VMCB_INTERCEPT_CPUID | VMCB_INTERCEPT_HLT | VMCB_INTERCEPT_IO |
-          VMCB_INTERCEPT_SHUTDOWN;
+          VMCB_INTERCEPT_MSR | VMCB_INTERCEPT_SHUTDOWN;
     i2 |= VMCB_INTERCEPT_VMRUN;
 
     vmcb_write(vcpu, VMCB_CONTROL_INTERCEPT_INSTRUCTION1, i1);
@@ -115,7 +115,11 @@ void vcpu_init(vcpu_t *vcpu)
     set_default_intercepts(vcpu);
     memset(vcpu->io, ~(word_t)0, VCPU_IOBITMAP_SIZE);
     vmcb_write(vcpu, VMCB_CONTROL_IOPM_BASE_PA, pptr_to_paddr(vcpu->io));
-    /* Nested KVM always checks MSRPM GPA legality; point at the 8KiB IO map. */
+    /* Nested KVM always checks MSRPM GPA legality; point at the 8KiB IO map.
+     * Same page is the all-1s MSRPM while INTERCEPT_MSR is set. Soft LAPIC
+     * needs IA32_APIC_BASE intercepted; FS/GS bases are emulated in libvmm by
+     * writing VMCB segment bases (passthrough via MSRPM holes regresses under
+     * nested KVM). Dedicated MSRPM still follow-up. */
     vmcb_write(vcpu, VMCB_CONTROL_MSRPM_BASE_PA, pptr_to_paddr(vcpu->io));
     /* DR7 bit 10 is reserved-as-1; zero fails some nested validity checks. */
     vmcb_write(vcpu, VMCB_STATE_GUEST_DR7, 0x400);
@@ -169,6 +173,10 @@ static exception_t invokeVCPUWriteRegisters(vcpu_t *vcpu, word_t *buffer)
     for (i = 0; i < n_vcpu_gp_register; i++) {
         vcpu->gp_registers[i] = getSyscallArg(i, buffer);
     }
+    /* VMRUN restores guest RAX from the VMCB state-save, not gp_registers.
+     * Emulated IN/CPUID/etc. update EAX via WriteRegisters — sync into VMCB
+     * or the guest resumes with a stale RAX (triple-fault on early PIT reads). */
+    vmcb_write(vcpu, VMCB_STATE_GUEST_RAX, vcpu->gp_registers[VCPU_EAX]);
     setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
     return EXCEPTION_NONE;
 }
@@ -272,24 +280,86 @@ static exception_t decodeWriteVMCB(cap_t cap, word_t length, bool_t call, word_t
     return invokeWriteVMCB(VCPU_PTR(cap_vcpu_cap_get_capVCPUPtr(cap)), field, value, call, buffer);
 }
 
+static exception_t invokeEnableIOPort(vcpu_t *vcpu, cte_t *slot, cap_t cap, uint16_t low, uint16_t high)
+{
+    /* Same shape as VT-x: clear prior mappings for this IOPort cap, then allow
+     * [low,high] in the guest IOPM (bit cleared = no intercept). The IOPort
+     * cap's VPID field is overloaded as SVASID under KernelSVM. */
+    clearSVASIDIOPortMappings(cap_io_port_cap_get_capIOPortVPID(cap),
+                              cap_io_port_cap_get_capIOPortFirstPort(cap),
+                              cap_io_port_cap_get_capIOPortLastPort(cap));
+    cap = cap_io_port_cap_set_capIOPortVPID(cap, vcpu->svasid);
+    slot->cap = cap;
+    setIOPortMask(vcpu->io, low, high, false);
+    return EXCEPTION_NONE;
+}
+
 static exception_t decodeEnableIOPort(cap_t cap, word_t length, word_t *buffer)
 {
-    (void)cap;
-    (void)length;
-    (void)buffer;
-    userError("VCPU EnableIOPort: Unimplemented.");
-    current_syscall_error.type = seL4_IllegalOperation;
-    return EXCEPTION_SYSCALL_ERROR;
+    vcpu_t *vcpu;
+    cap_t ioCap;
+    cte_t *ioSlot;
+    uint16_t low, high;
+
+    if (length < 2) {
+        userError("VCPU EnableIOPort: Truncated message.");
+        current_syscall_error.type = seL4_TruncatedMessage;
+        return EXCEPTION_SYSCALL_ERROR;
+    }
+    if (current_extra_caps.excaprefs[0] == NULL) {
+        userError("VCPU EnableIOPort: Truncated message.");
+        current_syscall_error.type = seL4_TruncatedMessage;
+        return EXCEPTION_SYSCALL_ERROR;
+    }
+    ioSlot = current_extra_caps.excaprefs[0];
+    ioCap  = current_extra_caps.excaprefs[0]->cap;
+
+    if (cap_get_capType(ioCap) != cap_io_port_cap) {
+        userError("VCPU EnableIOPort: IOPort cap is not a IOPort cap.");
+        current_syscall_error.type = seL4_IllegalOperation;
+        return EXCEPTION_SYSCALL_ERROR;
+    }
+
+    low = getSyscallArg(0, buffer);
+    high = getSyscallArg(1, buffer);
+
+    if (low < cap_io_port_cap_get_capIOPortFirstPort(ioCap) || high > cap_io_port_cap_get_capIOPortLastPort(ioCap)) {
+        userError("VCPU EnableIOPort: Requested range not valid for given IOPort cap");
+        current_syscall_error.type = seL4_InvalidArgument;
+        current_syscall_error.invalidArgumentNumber = 0;
+        return EXCEPTION_SYSCALL_ERROR;
+    }
+
+    vcpu = VCPU_PTR(cap_vcpu_cap_get_capVCPUPtr(cap));
+
+    setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
+    return invokeEnableIOPort(vcpu, ioSlot, ioCap, low, high);
+}
+
+static exception_t invokeDisableIOPort(vcpu_t *vcpu, uint16_t low, uint16_t high)
+{
+    setIOPortMask(vcpu->io, low, high, true);
+    setThreadState(NODE_STATE(ksCurThread), ThreadState_Restart);
+    return EXCEPTION_NONE;
 }
 
 static exception_t decodeDisableIOPort(cap_t cap, word_t length, word_t *buffer)
 {
-    (void)cap;
-    (void)length;
-    (void)buffer;
-    userError("VCPU DisableIOPort: Unimplemented.");
-    current_syscall_error.type = seL4_IllegalOperation;
-    return EXCEPTION_SYSCALL_ERROR;
+    vcpu_t *vcpu;
+    uint16_t low, high;
+
+    if (length < 2) {
+        userError("VCPU DisableIOPort: Truncated message.");
+        current_syscall_error.type = seL4_TruncatedMessage;
+        return EXCEPTION_SYSCALL_ERROR;
+    }
+
+    low = getSyscallArg(0, buffer);
+    high = getSyscallArg(1, buffer);
+
+    vcpu = VCPU_PTR(cap_vcpu_cap_get_capVCPUPtr(cap));
+
+    return invokeDisableIOPort(vcpu, low, high);
 }
 
 exception_t decodeX86VCPUInvocation(
@@ -597,9 +667,15 @@ void invnpt(npt_pml4e_t *npt_pml4)
 
 void clearSVASIDIOPortMappings(svasid_t svasid, uint16_t first, uint16_t last)
 {
-  (void)svasid;
-  (void)first;
-  (void)last;
+    if (svasid == SVASID_INVALID) {
+        return;
+    }
+    vcpu_t *vcpu = x86KSSVASIDTable[svasid];
+    if (vcpu == NULL) {
+        return;
+    }
+    assert(vcpu->svasid == svasid);
+    setIOPortMask(vcpu->io, first, last, true);
 }
 
 #ifdef ENABLE_SMP_SUPPORT

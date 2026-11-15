@@ -32,8 +32,11 @@
 #define VMCB_CONTROL_EVENTINJ               0x0A8
 #define VMCB_CONTROL_NCR3                   0x0B0
 
-/* State save area begins at 0x400 (offsets absolute from VMCB base). */
+/* State save area begins at 0x400 (offsets absolute from VMCB base).
+ * Each segment is 16 bytes: selector, attrib, limit, base@+8. */
 #define VMCB_STATE_SAVE_BASE                0x400
+#define VMCB_STATE_FS                       0x440
+#define VMCB_STATE_GS                       0x450
 #define VMCB_STATE_GUEST_EFER               0x4D0
 #define VMCB_STATE_GUEST_CR4                0x548
 #define VMCB_STATE_GUEST_CR3                0x550
